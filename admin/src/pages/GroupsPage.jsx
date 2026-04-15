@@ -1,0 +1,89 @@
+import { useEffect, useState } from 'react';
+import { groupsAPI } from '../services/api';
+import DataTable from '../components/DataTable';
+
+const STATUS_COLORS = {
+  open:   'bg-green-100 text-green-700',
+  full:   'bg-amber-100 text-amber-700',
+  closed: 'bg-gray-100 text-gray-600',
+};
+
+export default function GroupsPage() {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    groupsAPI.getAll()
+      .then((res) => setGroups(res.data))
+      .catch(() => setGroups([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = groups.filter((g) =>
+    g.name?.toLowerCase().includes(search.toLowerCase()) ||
+    g.trail_name?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const columns = [
+    {
+      key: 'name', label: 'Group',
+      render: (val, row) => (
+        <div>
+          <p className="font-medium text-gray-800">{val}</p>
+          <p className="text-gray-400 text-xs">{row.trail_name || 'No trail'}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'leader_name', label: 'Organizer',
+      render: (val) => <span className="text-sm text-gray-700">{val || '—'}</span>,
+    },
+    {
+      key: 'current_members', label: 'Members',
+      render: (val, row) => (
+        <span className="text-sm">{val} / {row.max_members}</span>
+      ),
+    },
+    {
+      key: 'start_date', label: 'Start Date',
+      render: (val) => val ? new Date(val).toLocaleDateString() : '—',
+    },
+    {
+      key: 'status', label: 'Status',
+      render: (val) => (
+        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[val] || STATUS_COLORS.open}`}>
+          {val}
+        </span>
+      ),
+    },
+    {
+      key: 'budget_estimate', label: 'Budget (NPR)',
+      render: (val) => val ? `NPR ${Number(val).toLocaleString()}` : '—',
+    },
+  ];
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Groups</h1>
+          <p className="text-gray-400 text-sm mt-1">{groups.length} total groups</p>
+        </div>
+        <input
+          type="text"
+          placeholder="Search groups…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="px-4 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 w-56"
+        />
+      </div>
+
+      {loading ? (
+        <div className="bg-white rounded-xl h-64 animate-pulse border border-gray-100" />
+      ) : (
+        <DataTable columns={columns} data={filtered} emptyMessage="No groups found." />
+      )}
+    </div>
+  );
+}

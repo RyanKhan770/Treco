@@ -1,12 +1,16 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { loadUser } from '../store/slices/authSlice';
 import { colors } from '../constants/colors';
+import { fontSize, fontWeight, shadows } from '../constants/theme';
+import {
+  Home, Compass, Users, MessageCircle, User,
+} from 'lucide-react-native';
 
 // Auth screens
 import SplashScreen from '../screens/SplashScreen';
@@ -37,49 +41,73 @@ import VerifyIdentityScreen from '../screens/profile/VerifyIdentityScreen';
 import ReportIssueScreen from '../screens/shared/ReportIssueScreen';
 import MyTripsScreen from '../screens/profile/MyTripsScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
+import PrivacyScreen from '../screens/profile/PrivacyScreen';
+import HelpCenterScreen from '../screens/shared/HelpCenterScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ name, focused }) {
-  const icons = {
-    Home: focused ? '🏠' : '🏠',
-    Explore: focused ? '🗺️' : '🗺️',
-    Groups: focused ? '👥' : '👥',
-    Messages: focused ? '💬' : '💬',
-    Profile: focused ? '👤' : '👤',
-  };
-  return <Text style={{ fontSize: 20 }}>{icons[name]}</Text>;
+const TAB_ICONS = {
+  Home:     Home,
+  Explore:  Compass,
+  Groups:   Users,
+  Messages: MessageCircle,
+  Profile:  User,
+};
+
+function CustomTabBar({ state, descriptors, navigation }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const label = options.tabBarLabel ?? route.name;
+        const isFocused = state.index === index;
+        const Icon = TAB_ICONS[route.name] || Home;
+
+        const onPress = () => {
+          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
+        };
+
+        return (
+          <View key={route.key} style={styles.tabItem}>
+            <View
+              style={[
+                styles.tabIconWrap,
+                isFocused && styles.tabIconWrapActive,
+              ]}
+              onTouchEnd={onPress}
+            >
+              <Icon
+                size={22}
+                color={isFocused ? colors.primary : colors.textLight}
+                strokeWidth={isFocused ? 2.5 : 1.8}
+              />
+            </View>
+            <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+              {label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused }) => (
-          <TabIcon name={route.name} focused={focused} />
-        ),
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textLight,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-        },
-      })}
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Explore" component={ExploreScreen} />
-      <Tab.Screen name="Groups" component={GroupsScreen} />
+      <Tab.Screen name="Home"     component={HomeScreen} />
+      <Tab.Screen name="Explore"  component={ExploreScreen} />
+      <Tab.Screen name="Groups"   component={GroupsScreen} />
       <Tab.Screen name="Messages" component={MessagesScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile"  component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
@@ -87,10 +115,10 @@ function MainTabs() {
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Splash" component={SplashScreen} />
-      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="Splash"      component={SplashScreen} />
+      <Stack.Screen name="Onboarding"  component={OnboardingScreen} />
+      <Stack.Screen name="Login"       component={LoginScreen} />
+      <Stack.Screen name="Register"    component={RegisterScreen} />
     </Stack.Navigator>
   );
 }
@@ -98,22 +126,26 @@ function AuthStack() {
 function AppStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={MainTabs} />
-      <Stack.Screen name="TrailDetail" component={TrailDetailScreen} />
-      <Stack.Screen name="TrailMap" component={MapViewScreen} />
-      <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
-      <Stack.Screen name="CreateTrip" component={CreateTripScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} />
-      <Stack.Screen name="Checklist" component={ChecklistScreen} />
+      <Stack.Screen name="MainTabs"      component={MainTabs} />
+      <Stack.Screen name="TrailDetail"   component={TrailDetailScreen} />
+      <Stack.Screen name="TrailMap"      component={MapViewScreen} />
+      <Stack.Screen name="GroupDetail"   component={GroupDetailScreen} />
+      <Stack.Screen name="CreateTrip"    component={CreateTripScreen} />
+      <Stack.Screen name="Chat"          component={ChatScreen} />
+      <Stack.Screen name="Checklist"     component={ChecklistScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="Search" component={SearchScreen} />
-      <Stack.Screen name="Reviews" component={ReviewsScreen} />
-      <Stack.Screen name="TripBudget" component={TripBudgetScreen} />
-      <Stack.Screen name="OfflineMaps" component={OfflineMapsScreen} />
+      <Stack.Screen name="Search"        component={SearchScreen} />
+      <Stack.Screen name="Reviews"       component={ReviewsScreen} />
+      <Stack.Screen name="TripBudget"    component={TripBudgetScreen} />
+      <Stack.Screen name="OfflineMaps"   component={OfflineMapsScreen} />
       <Stack.Screen name="VerifyIdentity" component={VerifyIdentityScreen} />
-      <Stack.Screen name="ReportIssue" component={ReportIssueScreen} />
-      <Stack.Screen name="MyTrips" component={MyTripsScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="ReportIssue"   component={ReportIssueScreen} />
+      <Stack.Screen name="MyTrips"       component={MyTripsScreen} />
+      <Stack.Screen name="Settings"        component={SettingsScreen} />
+      <Stack.Screen name="EditProfile"     component={EditProfileScreen} />
+      <Stack.Screen name="ChangePassword"  component={ChangePasswordScreen} />
+      <Stack.Screen name="Privacy"         component={PrivacyScreen} />
+      <Stack.Screen name="HelpCenter"      component={HelpCenterScreen} />
     </Stack.Navigator>
   );
 }
@@ -140,3 +172,48 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: -4 },
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  tabIconWrap: {
+    width: 44,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabIconWrapActive: {
+    backgroundColor: colors.primaryPale,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: fontWeight.semiBold,
+    color: colors.textLight,
+    letterSpacing: 0.2,
+  },
+  tabLabelActive: {
+    color: colors.primary,
+    fontWeight: fontWeight.bold,
+  },
+});

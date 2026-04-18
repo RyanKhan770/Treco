@@ -1,248 +1,401 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, SafeAreaView, Alert,
+  View, Text, StyleSheet, ScrollView, StatusBar, Alert,
+  Dimensions, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ChevronLeft, MoreVertical, Calendar, Users, Wallet, MapPin,
+  CheckSquare, MessageSquare, UserPlus, BadgeCheck, Star,
+  RefreshCw, AlertCircle, UserMinus,
+} from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../constants/colors';
+import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
+import {
+  Badge, Button, Card, PressableScale, FadeIn, SlideUp, Stagger,
+} from '../../components/ui';
+import MountainScene from '../../assets/svg/MountainScene';
+import TopoPattern from '../../assets/svg/TopoPattern';
+import { groupsAPI } from '../../services/api';
 
-const groupDetails = {
-  '1': {
-    name: 'Langtang Valley Trek', dates: 'Dec 28–Jan 3', difficulty: 'Moderate',
-    organizer: { name: 'Hari Sharma', rating: 4.9, initial: 'H', verified: true },
-    members: [
-      { name: 'Hari Sharma', role: 'Organizer', rating: 4.9, initial: 'H', verified: true },
-      { name: 'Priya Thapa', role: 'Member', rating: 4.7, initial: 'P', verified: false },
-      { name: 'Ramesh KC', role: 'Member', rating: 4.5, initial: 'R', verified: false },
-      { name: 'Sita Gurung', role: 'Member', rating: 4.6, initial: 'S', verified: false },
-      { name: 'Anuj Shrestha', role: 'Member', rating: 4.8, initial: 'A', verified: false },
-    ],
-    maxMembers: 8,
-    budget: 'NPR 25,000',
-    meetingPoint: 'Kathmandu',
-    hasChecklist: true,
-  },
-};
+const { width: W } = Dimensions.get('window');
 
-const avatarColors = ['#1B4D3E', '#2196F3', '#FF5722', '#9C27B0', '#FF9800'];
+const DIFF_TONE = { Easy: 'success', Moderate: 'warning', Hard: 'danger', Challenging: 'danger', Difficult: 'danger' };
+const AVATAR_COLORS = ['#40916C', '#457B9D', '#E76F51', '#6B4423', '#52B788', '#8B5CF6'];
+const HERO_VARIANTS = ['alpine', 'mist', 'sunset', 'dawn', 'valley'];
+
+function avatarColor(str = '') {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function initials(name = '') {
+  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function heroVariant(name = '') {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return HERO_VARIANTS[h % HERO_VARIANTS.length];
+}
+
+function formatDate(start, end) {
+  if (!start) return 'TBD';
+  const s = new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (!end) return s;
+  const e = new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${s} – ${e}`;
+}
+
+function formatBudget(val) {
+  if (!val) return 'TBD';
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  return `NPR ${n.toLocaleString()}`;
+}
 
 const GroupDetailScreen = ({ route, navigation }) => {
   const { groupId } = route.params;
-  const group = groupDetails[groupId] || {
-    name: 'Trek Group', dates: 'TBD', difficulty: 'Moderate',
-    organizer: { name: 'Organizer', rating: 4.5, initial: 'O', verified: false },
-    members: [], maxMembers: 8, budget: 'TBD', meetingPoint: 'TBD', hasChecklist: false,
-  };
+  const [group, setGroup] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
 
+  const fetchGroup = useCallback(async () => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await groupsAPI.getById(groupId);
+      setGroup(res.data);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load group');
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => { fetchGroup(); }, [fetchGroup]);
+
   const handleJoin = () => {
+    if (!group) return;
     Alert.alert(
-      'Join Group',
+      'Join group',
       `Send a request to join "${group.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send Request', onPress: () => {
-            setJoined(true);
-            Alert.alert('Request Sent!', 'The group organizer will review your request.');
-          }
+          text: 'Send request',
+          onPress: async () => {
+            try {
+              setJoining(true);
+              await groupsAPI.join(groupId, '');
+              setJoined(true);
+              Alert.alert('Request sent', 'The group organizer will review your request.');
+            } catch (err) {
+              const msg = err?.response?.data?.message || 'Could not send request';
+              if (msg.toLowerCase().includes('already')) {
+                setJoined(true);
+                Alert.alert('Already requested', 'You already have a pending join request.');
+              } else {
+                Alert.alert('Error', msg);
+              }
+            } finally {
+              setJoining(false);
+            }
+          },
         },
-      ]
+      ],
     );
   };
 
+  // ── Loading ─────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.hero, { alignItems: 'center', justifyContent: 'flex-end' }]}>
+          <SafeAreaView edges={['top']} style={styles.heroHeader}>
+            <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
+              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+            </PressableScale>
+            <View />
+          </SafeAreaView>
+          <ActivityIndicator color="#fff" size="large" style={{ marginBottom: spacing.xl }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.loadingText}>Loading group…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Error ────────────────────────────────────────────────────────────────────
+  if (error || !group) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.hero}>
+          <SafeAreaView edges={['top']} style={styles.heroHeader}>
+            <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
+              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+            </PressableScale>
+          </SafeAreaView>
+        </View>
+        <View style={styles.errorContainer}>
+          <AlertCircle size={48} color={colors.danger} strokeWidth={1.5} />
+          <Text style={styles.errorTitle}>Couldn't load group</Text>
+          <Text style={styles.errorSub}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchGroup}>
+            <RefreshCw size={16} color={colors.primary} strokeWidth={2.25} />
+            <Text style={styles.retryText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Derived fields ───────────────────────────────────────────────────────────
+  const members = group.members || [];
+  const memberCount = group.current_members ?? members.length ?? 0;
+  const maxMembers = group.max_members ?? 10;
+  const diff = group.difficulty ?? 'Moderate';
+  const variant = heroVariant(group.name);
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Group Details</Text>
-          <TouchableOpacity>
-            <Text style={styles.moreIcon}>⋮</Text>
-          </TouchableOpacity>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <StatusBar barStyle="light-content" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+
+        {/* ── Hero ─────────────────────────────────────────────────────────── */}
+        <View style={styles.hero}>
+          <MountainScene width={W} height={260} variant={variant} />
+          <LinearGradient
+            colors={['rgba(15,44,32,0)', 'rgba(15,44,32,0.85)']}
+            style={styles.heroFade}
+          />
+          <TopoPattern width={W} height={260} color="#fff" opacity={0.08} />
+          <SafeAreaView edges={['top']} style={styles.heroHeader}>
+            <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
+              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+            </PressableScale>
+            <PressableScale style={styles.iconBtn} scaleTo={0.9}>
+              <MoreVertical size={20} color="#fff" strokeWidth={2.25} />
+            </PressableScale>
+          </SafeAreaView>
+          <FadeIn delay={150} style={styles.heroText}>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.sm }}>
+              <Badge label={formatDate(group.start_date, group.end_date)} tone="dark" size="sm" />
+              <Badge label={diff} tone={DIFF_TONE[diff] || 'warning'} size="sm" />
+            </View>
+            <Text style={styles.heroTitle}>{group.name}</Text>
+            <Text style={styles.heroSub}>
+              {group.trail_name ? `${group.trail_name} · ` : ''}Organized by {group.leader_name || 'Organizer'}
+            </Text>
+          </FadeIn>
         </View>
 
         <View style={styles.body}>
-          {/* Group info */}
-          <View style={styles.card}>
-            <Text style={styles.groupName}>{group.name}</Text>
-            <View style={styles.tagRow}>
-              <View style={styles.dateBadge}>
-                <Text style={styles.dateBadgeText}>{group.dates}</Text>
-              </View>
-              <View style={styles.diffBadge}>
-                <Text style={styles.diffBadgeText}>{group.difficulty}</Text>
-              </View>
-            </View>
-            <Text style={styles.organizedBy}>Organized by: {group.organizer.name}</Text>
-          </View>
 
-          {/* Members */}
-          <Text style={styles.sectionTitle}>Members ({group.members.length}/{group.maxMembers})</Text>
-          <View style={styles.card}>
-            {group.members.map((m, i) => (
-              <View key={i} style={[styles.memberRow, i < group.members.length - 1 && styles.memberRowBorder]}>
-                <View style={[styles.avatar, { backgroundColor: avatarColors[i % avatarColors.length] }]}>
-                  <Text style={styles.avatarText}>{m.initial}</Text>
+          {/* ── Logistics strip ──────────────────────────────────────────────── */}
+          <SlideUp delay={120}>
+            <Card style={styles.logisticsCard} elevation="md">
+              <View style={styles.logisticsRow}>
+                <View style={styles.logisticsItem}>
+                  <Wallet size={16} color={colors.primary} strokeWidth={2.25} />
+                  <Text style={styles.logisticsLabel}>Budget</Text>
+                  <Text style={styles.logisticsValue}>{formatBudget(group.budget_estimate)}</Text>
                 </View>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{m.name}</Text>
-                  <Text style={styles.memberMeta}>{m.role} • {m.rating} ★</Text>
+                <View style={styles.logisticsDivider} />
+                <View style={styles.logisticsItem}>
+                  <MapPin size={16} color={colors.primary} strokeWidth={2.25} />
+                  <Text style={styles.logisticsLabel}>Meet at</Text>
+                  <Text style={styles.logisticsValue} numberOfLines={1}>{group.meeting_point || 'TBD'}</Text>
                 </View>
-                {m.verified && (
-                  <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedText}>Verified</Text>
+                <View style={styles.logisticsDivider} />
+                <View style={styles.logisticsItem}>
+                  <Users size={16} color={colors.primary} strokeWidth={2.25} />
+                  <Text style={styles.logisticsLabel}>Seats</Text>
+                  <Text style={styles.logisticsValue}>{memberCount}/{maxMembers}</Text>
+                </View>
+              </View>
+            </Card>
+          </SlideUp>
+
+          {/* ── Description ──────────────────────────────────────────────────── */}
+          {!!group.description && (
+            <SlideUp delay={160}>
+              <Card style={styles.descCard}>
+                <Text style={styles.descText}>{group.description}</Text>
+              </Card>
+            </SlideUp>
+          )}
+
+          {/* ── Members ──────────────────────────────────────────────────────── */}
+          <Text style={styles.section}>Members · {memberCount}/{maxMembers}</Text>
+          {members.length === 0 ? (
+            <Card style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No members yet</Text>
+            </Card>
+          ) : (
+            <Stagger initialDelay={200} step={40} distance={12}>
+              {members.map((m) => (
+                <Card key={m.id} style={styles.memberCard}>
+                  <View style={[styles.avatar, { backgroundColor: avatarColor(m.name) }]}>
+                    <Text style={styles.avatarText}>{initials(m.name)}</Text>
                   </View>
-                )}
-              </View>
-            ))}
-            <TouchableOpacity style={styles.viewAllBtn}>
-              <Text style={styles.viewAllText}>View all {group.members.length} members</Text>
-            </TouchableOpacity>
-          </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.memberName}>{m.name}</Text>
+                      {m.is_verified && <BadgeCheck size={14} color={colors.info} strokeWidth={2.5} />}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <Text style={styles.memberMeta}>
+                        {m.member_role === 'organizer' ? 'Organizer' : 'Member'}
+                      </Text>
+                      {m.overall_rating != null && (
+                        <>
+                          <Text style={[styles.memberMeta, { color: colors.textMuted }]}>·</Text>
+                          <Star size={11} color={colors.warning} fill={colors.warning} strokeWidth={0} />
+                          <Text style={styles.memberMeta}>{parseFloat(m.overall_rating).toFixed(1)}</Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                </Card>
+              ))}
+            </Stagger>
+          )}
 
-          {/* Trip Logistics */}
-          <Text style={styles.sectionTitle}>Trip Logistics</Text>
-          <View style={styles.card}>
-            <View style={styles.logisticsRow}>
-              <View style={styles.logisticsItem}>
-                <Text style={styles.logisticsLabel}>Budget</Text>
-                <Text style={styles.logisticsValue}>{group.budget}</Text>
-              </View>
-              <View style={styles.logisticsItem}>
-                <Text style={styles.logisticsLabel}>Meeting Point</Text>
-                <Text style={styles.logisticsValue}>{group.meetingPoint}</Text>
-              </View>
-            </View>
-            {group.hasChecklist && (
-              <TouchableOpacity
-                style={styles.checklistRow}
-                onPress={() => navigation.navigate('Checklist', { groupId })}
-              >
-                <Text style={styles.checklistLabel}>Gear Checklist</Text>
-                <Text style={styles.checklistView}>View</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Action buttons */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.messageBtn}
-              onPress={() => navigation.navigate('Chat', { groupId, groupName: group.name })}
+          {/* ── Gear checklist shortcut ─────────────────────────────────────── */}
+          <SlideUp delay={240}>
+            <PressableScale
+              style={styles.checklistCard}
+              onPress={() => navigation.navigate('Checklist', { groupId })}
+              scaleTo={0.98}
             >
-              <Text style={styles.messageBtnText}>Message</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.joinBtn, joined && styles.joinBtnDisabled]}
-              onPress={!joined ? handleJoin : undefined}
-            >
-              <Text style={styles.joinBtnText}>{joined ? 'Request Sent' : 'Join Group'}</Text>
-            </TouchableOpacity>
-          </View>
+              <View style={styles.checklistIcon}>
+                <CheckSquare size={20} color={colors.primary} strokeWidth={2.25} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checklistTitle}>Gear checklist</Text>
+                <Text style={styles.checklistSub}>Shared with group members</Text>
+              </View>
+              <Text style={styles.viewLink}>View</Text>
+            </PressableScale>
+          </SlideUp>
         </View>
       </ScrollView>
+
+      {/* ── CTA bar ─────────────────────────────────────────────────────────── */}
+      <View style={styles.ctaBar}>
+        <Button
+          title="Message"
+          variant="outline"
+          icon={<MessageSquare size={16} color={colors.primary} strokeWidth={2.25} />}
+          onPress={() => navigation.navigate('Chat', { groupId, groupName: group.name })}
+          fullWidth
+        />
+        <View style={{ flex: 1.2 }}>
+          <Button
+            title={joining ? 'Sending…' : joined ? 'Request sent' : 'Join group'}
+            variant={joined ? 'solid' : 'primary'}
+            icon={!joined && !joining ? <UserPlus size={16} color="#fff" strokeWidth={2.25} /> : null}
+            onPress={!joined && !joining ? handleJoin : undefined}
+            disabled={joined || joining}
+            fullWidth
+          />
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  hero: { height: 260, backgroundColor: colors.primaryDark, overflow: 'hidden' },
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 200 },
+  heroHeader: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingTop: spacing.md,
   },
-  backText: { fontSize: 22, color: colors.textPrimary, padding: 4 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  moreIcon: { fontSize: 22, color: colors.textPrimary, padding: 4 },
-  body: { padding: 16 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  groupName: { fontSize: 20, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
-  tagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  dateBadge: {
-    backgroundColor: colors.accentVeryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  dateBadgeText: { fontSize: 12, color: colors.primary, fontWeight: '500' },
-  diffBadge: {
-    backgroundColor: colors.tagModerate + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  diffBadgeText: { fontSize: 12, color: colors.tagModerate, fontWeight: '500' },
-  organizedBy: { fontSize: 13, color: colors.textSecondary },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  memberRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  avatar: {
+  iconBtn: {
     width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: colors.white, fontSize: 15, fontWeight: '700' },
-  memberInfo: { flex: 1 },
-  memberName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  memberMeta: { fontSize: 12, color: colors.textSecondary },
-  verifiedBadge: {
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+  heroText: { position: 'absolute', bottom: spacing.lg, left: spacing.md, right: spacing.md },
+  heroTitle: { fontSize: fontSize.xxl, fontWeight: fontWeight.bold, color: '#fff', letterSpacing: -0.5 },
+  heroSub: { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: fontWeight.medium },
+
+  body: { padding: spacing.md, marginTop: -30 },
+
+  loadingText: { marginTop: spacing.md, fontSize: fontSize.sm, color: colors.textSecondary },
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  errorTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text, marginTop: spacing.md },
+  errorSub: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs, textAlign: 'center' },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    marginTop: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderRadius: radius.round, borderWidth: 1.5, borderColor: colors.primary,
   },
-  verifiedText: { fontSize: 11, color: colors.warning, fontWeight: '600' },
-  viewAllBtn: { marginTop: 8, alignItems: 'center' },
-  viewAllText: { color: colors.primary, fontSize: 13, fontWeight: '500' },
-  logisticsRow: { flexDirection: 'row', marginBottom: 12 },
-  logisticsItem: { flex: 1 },
-  logisticsLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 4 },
-  logisticsValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  checklistRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  retryText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semiBold },
+
+  logisticsCard: { marginBottom: spacing.md },
+  logisticsRow: { flexDirection: 'row', alignItems: 'center' },
+  logisticsItem: { flex: 1, alignItems: 'center', gap: 4 },
+  logisticsDivider: { width: 1, height: 40, backgroundColor: colors.border },
+  logisticsLabel: { fontSize: 10, color: colors.textLight, letterSpacing: 1, textTransform: 'uppercase', fontWeight: fontWeight.semiBold, marginTop: 2 },
+  logisticsValue: { fontSize: fontSize.sm, color: colors.text, fontWeight: fontWeight.bold, textAlign: 'center' },
+
+  descCard: { marginBottom: spacing.md },
+  descText: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
+
+  section: {
+    fontSize: fontSize.xs, fontWeight: fontWeight.bold,
+    color: colors.primaryLight, letterSpacing: 2, textTransform: 'uppercase',
+    marginTop: spacing.sm, marginBottom: spacing.sm,
   },
-  checklistLabel: { fontSize: 14, color: colors.textSecondary },
-  checklistView: { fontSize: 14, color: colors.primary, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 12, marginBottom: 32 },
-  messageBtn: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 50,
-    alignItems: 'center',
+  emptyCard: { paddingVertical: spacing.lg, alignItems: 'center' },
+  emptyText: { fontSize: fontSize.sm, color: colors.textMuted },
+
+  memberCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  avatar: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
   },
-  messageBtnText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
-  joinBtn: {
-    flex: 2,
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 50,
-    alignItems: 'center',
+  avatarText: { color: '#fff', fontSize: fontSize.md, fontWeight: fontWeight.bold },
+  memberName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.text },
+  memberMeta: { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.medium },
+
+  checklistCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.primaryPale,
+    borderRadius: radius.lg,
+    padding: spacing.md, marginTop: spacing.md,
+    borderLeftWidth: 3, borderLeftColor: colors.primary,
   },
-  joinBtnDisabled: { backgroundColor: colors.textMuted },
-  joinBtnText: { color: colors.white, fontSize: 15, fontWeight: '600' },
+  checklistIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checklistTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.text },
+  checklistSub: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  viewLink: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.bold },
+
+  ctaBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.lg,
+    backgroundColor: colors.card,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    ...shadows.lg,
+  },
 });
 
 export default GroupDetailScreen;

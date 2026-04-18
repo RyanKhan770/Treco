@@ -5,6 +5,49 @@ const upload = require('../middleware/upload');
 
 const router = express.Router();
 
+// GET /api/users/organizers — browse verified organizers for Connect tab
+// Must be defined BEFORE /:id to avoid 'organizers' being caught as an id param
+router.get('/organizers', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, profile_photo, bio, overall_rating, total_treks,
+              total_groups, experience_level, location, is_verified
+       FROM users
+       WHERE role IN ('organizer', 'admin')
+       ORDER BY overall_rating DESC NULLS LAST, total_treks DESC NULLS LAST
+       LIMIT 30`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/users/browse — browse all trekkers (for connect with users)
+router.get('/browse', auth, async (req, res) => {
+  const { q } = req.query;
+  try {
+    let query = `
+      SELECT id, name, profile_photo, bio, overall_rating, total_treks,
+             experience_level, location, is_verified, role
+      FROM users
+      WHERE id != $1
+    `;
+    const params = [req.user.id];
+    if (q) {
+      query += ` AND (name ILIKE $2 OR location ILIKE $2)`;
+      params.push(`%${q}%`);
+    }
+    query += ' ORDER BY overall_rating DESC NULLS LAST LIMIT 40';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/users/:id
 router.get('/:id', auth, async (req, res) => {
   try {

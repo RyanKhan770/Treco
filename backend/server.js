@@ -15,7 +15,8 @@ const reviewsRoutes = require('./routes/reviews');
 const notificationsRoutes = require('./routes/notifications');
 const organizerRoutes = require('./routes/organizer');
 const reportsRoutes = require('./routes/reports');
-const adminRoutes = require('./routes/admin');
+const adminRoutes  = require('./routes/admin');
+const dmRoutes     = require('./routes/dm');
 const { initSocket } = require('./socket/chatSocket');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/organizer', organizerRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/dm',    dmRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Treco API' }));

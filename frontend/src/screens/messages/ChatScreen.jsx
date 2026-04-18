@@ -1,116 +1,259 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, SafeAreaView, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, FlatList, TextInput, StatusBar,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ChevronLeft, MoreVertical, Send, MapPin, CheckSquare, Paperclip,
+} from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { PressableScale, FadeIn } from '../../components/ui';
+import { messagesAPI, dmAPI } from '../../services/api';
 
-const initialMessages = [
-  { id: '1', sender: 'Hari Sharma', initial: 'H', text: 'Good morning everyone! Ready for the trek?', time: '8:00 AM', mine: false },
-  { id: '2', sender: 'Priya Thapa', initial: 'P', text: 'Yes! So excited 🏔️', time: '8:05 AM', mine: false },
-  { id: '3', sender: 'Me', initial: 'R', text: 'Packed and ready!', time: '8:07 AM', mine: true },
-  { id: '4', sender: 'Ramesh KC', initial: 'R', text: 'See you all at the meeting point at 6am tomorrow', time: '8:10 AM', mine: false },
-  { id: '5', sender: 'Hari Sharma', initial: 'H', text: 'Don\'t forget your permits!', time: '8:12 AM', mine: false },
-];
+const AVATAR_COLORS = ['#40916C', '#457B9D', '#E76F51', '#6B4423', '#52B788', '#8B5CF6'];
+
+function avatarColor(str = '') {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function initials(name = '') {
+  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateLabel(dateStr) {
+  if (!dateStr) return 'Today';
+  const d = new Date(dateStr);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Insert date separator items between messages from different days
+function insertDateSeparators(msgs) {
+  const items = [];
+  let lastDate = null;
+  for (const msg of msgs) {
+    const d = msg.created_at ? new Date(msg.created_at).toDateString() : null;
+    if (d && d !== lastDate) {
+      items.push({ _separator: true, _key: `sep-${d}`, label: formatDateLabel(msg.created_at) });
+      lastDate = d;
+    }
+    items.push(msg);
+  }
+  return items;
+}
 
 const ChatScreen = ({ route, navigation }) => {
-  const { groupName, groupId } = route.params;
+  const { groupId, groupName, isDM, receiverId, receiverName } = route.params;
   const { user } = useAuth();
-  const [messages, setMessages] = useState(initialMessages);
-  const [text, setText] = useState('');
-  const scrollRef = useRef(null);
 
-  const sendMessage = () => {
-    if (!text.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        sender: 'Me',
-        initial: user?.fullName?.[0] || 'R',
-        text: text.trim(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        mine: true,
-      },
-    ]);
-    setText('');
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [text, setText] = useState('');
+  const flatRef = useRef(null);
+  const pollRef = useRef(null);
+
+  const displayName = isDM ? (receiverName || groupName) : groupName;
+
+  const fetchMessages = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      const res = isDM
+        ? await dmAPI.getMessages(receiverId)
+        : await messagesAPI.getGroupMessages(groupId);
+      setMessages(res.data || []);
+    } catch (err) {
+      // Silently fail on background polls
+    } finally {
+      setLoading(false);
+    }
+  }, [isDM, receiverId, groupId]);
+
+  useEffect(() => {
+    fetchMessages();
+    // Poll every 4 seconds for new messages
+    pollRef.current = setInterval(() => fetchMessages(true), 4000);
+    return () => clearInterval(pollRef.current);
+  }, [fetchMessages]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages.length]);
+
+  const sendMessage = async () => {
+    const content = text.trim();
+    if (!content || sending) return;
+    try {
+      setSending(true);
+      setText('');
+      if (isDM) {
+        await dmAPI.send(receiverId, content);
+      } else {
+        await messagesAPI.send(groupId, content);
+      }
+      await fetchMessages(true);
+    } catch (err) {
+      setText(content); // Restore on error
+    } finally {
+      setSending(false);
+    }
   };
+
+  const isMyMessage = (msg) => {
+    if (!user) return false;
+    const senderId = msg.sender_id ?? msg.senderId;
+    return senderId === user.id || senderId === user._id;
+  };
+
+  const listData = insertDateSeparators(messages);
+
+  const renderItem = ({ item }) => {
+    if (item._separator) {
+      return (
+        <View style={styles.dateChip}>
+          <Text style={styles.dateLabel}>{item.label}</Text>
+        </View>
+      );
+    }
+
+    const mine = isMyMessage(item);
+    const senderName = item.sender_name || item.senderName || 'Unknown';
+    const color = avatarColor(senderName);
+    const abbr = initials(senderName);
+    const msgText = item.content || item.text || '';
+    const time = formatTime(item.created_at || item.createdAt);
+
+    return (
+      <View style={[styles.msgRow, mine && styles.msgRowMine]}>
+        {!mine && (
+          <View style={[styles.msgAvatar, { backgroundColor: color }]}>
+            <Text style={styles.msgAvatarText}>{abbr}</Text>
+          </View>
+        )}
+        <View style={{ maxWidth: '74%' }}>
+          {!mine && <Text style={styles.senderName}>{senderName}</Text>}
+          <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+            <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{msgText}</Text>
+          </View>
+          <Text style={[styles.time, mine && { textAlign: 'right' }]}>{time}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const avatarColor2 = avatarColor(displayName);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
+
+        {/* ── Header ───────────────────────────────────────────────────────── */}
+        <FadeIn style={styles.header}>
+          <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn} scaleTo={0.9}>
+            <ChevronLeft size={22} color={colors.text} strokeWidth={2.25} />
+          </PressableScale>
           <View style={styles.headerCenter}>
-            <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>{groupName.slice(0, 2).toUpperCase()}</Text>
+            <View style={[styles.headerAvatar, { backgroundColor: avatarColor2 }]}>
+              <Text style={styles.headerAvatarText}>{initials(displayName)}</Text>
             </View>
-            <View>
-              <Text style={styles.headerName}>{groupName}</Text>
-              <Text style={styles.headerSub}>{messages.length} members</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerName} numberOfLines={1}>{displayName}</Text>
+              <Text style={styles.headerSub}>
+                {isDM ? 'Direct message' : `${messages.length} messages`}
+              </Text>
             </View>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.moreIcon}>⋮</Text>
-          </TouchableOpacity>
-        </View>
+          <PressableScale style={styles.iconBtn} scaleTo={0.9}>
+            <MoreVertical size={20} color={colors.text} strokeWidth={2.25} />
+          </PressableScale>
+        </FadeIn>
 
-        {/* Messages */}
-        <ScrollView
-          ref={scrollRef}
-          style={styles.messageList}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-        >
-          <Text style={styles.dateLabel}>Today</Text>
-          {messages.map((msg) => (
-            <View key={msg.id} style={[styles.msgRow, msg.mine && styles.msgRowMine]}>
-              {!msg.mine && (
-                <View style={styles.msgAvatar}>
-                  <Text style={styles.msgAvatarText}>{msg.initial}</Text>
-                </View>
-              )}
-              <View style={[styles.bubble, msg.mine && styles.bubbleMine]}>
-                <Text style={[styles.bubbleText, msg.mine && styles.bubbleTextMine]}>{msg.text}</Text>
-                <Text style={[styles.bubbleTime, msg.mine && { color: 'rgba(255,255,255,0.7)' }]}>{msg.time}</Text>
+        {/* ── Messages ─────────────────────────────────────────────────────── */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={styles.loadingText}>Loading messages…</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatRef}
+            data={listData}
+            keyExtractor={(item, idx) => item._key || String(item.id || idx)}
+            renderItem={renderItem}
+            style={styles.messageList}
+            contentContainerStyle={{ paddingVertical: spacing.md }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
               </View>
-            </View>
-          ))}
-          <View style={{ height: 16 }} />
-        </ScrollView>
+            }
+            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+          />
+        )}
 
-        {/* Quick actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickBtn}>
-            <Text style={styles.quickBtnText}>📍 Share Location</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() => navigation.navigate('Checklist', { groupId })}
-          >
-            <Text style={styles.quickBtnText}>✅ Checklist</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── Quick actions (group only) ────────────────────────────────────── */}
+        {!isDM && (
+          <View style={styles.quickActions}>
+            <PressableScale style={styles.quickBtn} scaleTo={0.95}>
+              <MapPin size={14} color={colors.primary} strokeWidth={2.25} />
+              <Text style={styles.quickBtnText}>Location</Text>
+            </PressableScale>
+            <PressableScale
+              style={styles.quickBtn}
+              onPress={() => navigation.navigate('Checklist', { groupId })}
+              scaleTo={0.95}
+            >
+              <CheckSquare size={14} color={colors.primary} strokeWidth={2.25} />
+              <Text style={styles.quickBtnText}>Checklist</Text>
+            </PressableScale>
+          </View>
+        )}
 
-        {/* Input */}
+        {/* ── Input ─────────────────────────────────────────────────────────── */}
         <View style={styles.inputRow}>
+          <PressableScale style={styles.attachBtn} scaleTo={0.9}>
+            <Paperclip size={18} color={colors.textSecondary} strokeWidth={2.25} />
+          </PressableScale>
           <TextInput
             style={styles.input}
-            placeholder="Type a message..."
+            placeholder="Message…"
             placeholderTextColor={colors.textMuted}
             value={text}
             onChangeText={setText}
             multiline
+            onSubmitEditing={sendMessage}
+            blurOnSubmit={false}
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
-            <Text style={styles.sendBtnText}>→</Text>
-          </TouchableOpacity>
+          <PressableScale
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+            onPress={sendMessage}
+            scaleTo={0.88}
+            disabled={!text.trim() || sending}
+          >
+            {sending
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Send size={18} color="#fff" strokeWidth={2.5} />
+            }
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -119,92 +262,114 @@ const ChatScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { padding: 4, marginRight: 4 },
-  backText: { fontSize: 22, color: colors.textPrimary },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.primary,
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center',
   },
-  headerAvatarText: { color: colors.white, fontSize: 12, fontWeight: '700' },
-  headerName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  headerSub: { fontSize: 12, color: colors.textMuted },
-  moreIcon: { fontSize: 22, color: colors.textPrimary, padding: 4 },
-  messageList: { flex: 1, paddingHorizontal: 12 },
-  dateLabel: { textAlign: 'center', color: colors.textMuted, fontSize: 12, marginVertical: 12 },
-  msgRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },
+  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerAvatar: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerAvatarText: { color: '#fff', fontSize: fontSize.xs, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+  headerName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.text, letterSpacing: -0.2 },
+  headerSub: { fontSize: fontSize.xs, color: colors.textLight, fontWeight: fontWeight.medium, marginTop: 1 },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  loadingText: { fontSize: fontSize.sm, color: colors.textSecondary },
+
+  messageList: { flex: 1, paddingHorizontal: spacing.md },
+  emptyContainer: { flex: 1, alignItems: 'center', paddingTop: spacing.xxl },
+  emptyText: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: 'italic' },
+
+  dateChip: {
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12, paddingVertical: 4,
+    borderRadius: radius.round,
+    marginVertical: spacing.sm,
+  },
+  dateLabel: { color: colors.textLight, fontSize: fontSize.xs, fontWeight: fontWeight.semiBold },
+
+  msgRow: { flexDirection: 'row', marginBottom: spacing.sm, alignItems: 'flex-end', gap: 8 },
   msgRowMine: { justifyContent: 'flex-end' },
   msgAvatar: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: colors.primary,
+    width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 8,
   },
-  msgAvatarText: { color: colors.white, fontSize: 12, fontWeight: '600' },
+  msgAvatarText: { color: '#fff', fontSize: 11, fontWeight: fontWeight.bold },
+  senderName: {
+    fontSize: fontSize.xs, color: colors.textLight,
+    fontWeight: fontWeight.semiBold, marginLeft: 4, marginBottom: 3,
+  },
   bubble: {
-    maxWidth: '72%',
-    backgroundColor: colors.white,
-    borderRadius: 16,
+    borderRadius: radius.lg,
+    paddingVertical: 10, paddingHorizontal: 14,
+    ...shadows.xs,
+  },
+  bubbleTheirs: {
+    backgroundColor: colors.card,
     borderBottomLeftRadius: 4,
-    padding: 10,
-    elevation: 1,
   },
   bubbleMine: {
     backgroundColor: colors.primary,
-    borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
   },
-  bubbleText: { fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
-  bubbleTextMine: { color: colors.white },
-  bubbleTime: { fontSize: 10, color: colors.textMuted, marginTop: 4, alignSelf: 'flex-end' },
+  bubbleText: { fontSize: fontSize.sm, color: colors.text, lineHeight: 20 },
+  bubbleTextMine: { color: '#fff' },
+  time: { fontSize: 10, color: colors.textLight, marginTop: 3, marginHorizontal: 4 },
+
   quickActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
+    gap: spacing.sm, backgroundColor: colors.card,
   },
   quickBtn: {
-    backgroundColor: colors.accentVeryLight,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.primaryPale,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.round,
   },
-  quickBtnText: { fontSize: 12, color: colors.primary, fontWeight: '500' },
+  quickBtnText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semiBold },
+
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 12,
-    backgroundColor: colors.white,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.card,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  attachBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
   },
   input: {
     flex: 1,
-    backgroundColor: colors.inputBg,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.textPrimary,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: fontSize.md, color: colors.text,
     maxHeight: 100,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
+    ...shadows.sm,
   },
-  sendBtnText: { color: colors.white, fontSize: 18, fontWeight: '700' },
+  sendBtnDisabled: { backgroundColor: colors.textMuted },
 });
 
 export default ChatScreen;

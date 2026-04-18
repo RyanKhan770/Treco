@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import {
   ArrowLeft, Layers, Plus, Minus, Locate, RotateCcw,
-  Pause, Play, AlertTriangle,
+  Pause, Play, AlertTriangle, Check,
 } from 'lucide-react-native';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -111,6 +111,13 @@ export default function MapViewScreen({ route, navigation }) {
 
   const trail = useMemo(() => ({ ...baseTrail, waypoints }), [baseTrail, waypoints]);
 
+  // ── Animated scales for manual-check animation (one per waypoint) ──
+  const checkScales = useRef(
+    baseTrail.waypoints.map((w) =>
+      new Animated.Value(w.status === 'completed' ? 1 : 0),
+    ),
+  ).current;
+
   // ── Elapsed timer ──────────────────────────────────────────────────
   useEffect(() => {
     if (!tracking) return;
@@ -170,6 +177,50 @@ export default function MapViewScreen({ route, navigation }) {
     }
     return wps;
   }
+
+  // ── Manual waypoint checkpoint ─────────────────────────────────────
+  const manualMark = (index) => {
+    setWaypoints((prev) => {
+      const wp = prev[index];
+      // Toggle: if already completed, do nothing (can't un-complete)
+      if (wp.status === 'completed') return prev;
+
+      const updated = prev.map((w, i) => {
+        if (i === index) return { ...w, status: 'completed' };
+        // If this was the 'current' waypoint, promote next upcoming to current
+        if (w.status === 'current' && index === prev.findIndex((x) => x.status === 'current')) {
+          return w; // will be overridden below if needed
+        }
+        return w;
+      });
+
+      // After marking index as completed, find the next 'current' or 'upcoming'
+      const wasCurrentIdx = prev.findIndex((w) => w.status === 'current');
+      // If we just completed the current waypoint, advance current to next upcoming
+      if (wasCurrentIdx === index) {
+        const nextIdx = updated.findIndex((w, i) => i > index && w.status === 'upcoming');
+        if (nextIdx !== -1) {
+          return updated.map((w, i) => i === nextIdx ? { ...w, status: 'current' } : w);
+        }
+      }
+      // If no current waypoint exists yet, set next upcoming as current
+      if (wasCurrentIdx === -1) {
+        const nextIdx = updated.findIndex((w) => w.status === 'upcoming');
+        if (nextIdx !== -1) {
+          return updated.map((w, i) => i === nextIdx ? { ...w, status: 'current' } : w);
+        }
+      }
+      return updated;
+    });
+
+    // Animate checkmark scale in
+    Animated.spring(checkScales[index], {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 180,
+      friction: 8,
+    }).start();
+  };
 
   // ── Trail segment GeoJSON ──────────────────────────────────────────
   const { completed, upcoming } = useMemo(
@@ -347,7 +398,7 @@ export default function MapViewScreen({ route, navigation }) {
           </MapboxGL.MarkerView>
         ))}
 
-        {/* Waypoint markers */}
+        {/* Waypoint markers — tappable checkpoints */}
         {trail.waypoints.map((wp, i) => (
           <MapboxGL.MarkerView
             key={`wp-${i}`}
@@ -355,16 +406,29 @@ export default function MapViewScreen({ route, navigation }) {
             coordinate={wp.coord}
             anchor={{ x: 0.5, y: 0.5 }}
           >
-            <TouchableOpacity activeOpacity={0.8} style={styles.markerTouchArea}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={styles.markerTouchArea}
+              onPress={() => manualMark(i)}
+            >
               <View style={[
                 styles.markerOuter,
                 { borderColor: STATUS_COLOR[wp.status] },
                 wp.status === 'current' && styles.markerCurrent,
+                wp.status === 'completed' && styles.markerCompleted,
               ]}>
-                <View style={[styles.markerInner, { backgroundColor: STATUS_COLOR[wp.status] }]} />
+                {wp.status === 'completed' ? (
+                  <Animated.View style={{ transform: [{ scale: checkScales[i] }] }}>
+                    <Check size={9} color="#fff" strokeWidth={3.5} />
+                  </Animated.View>
+                ) : (
+                  <View style={[styles.markerInner, { backgroundColor: STATUS_COLOR[wp.status] }]} />
+                )}
               </View>
               <View style={styles.markerLabelWrap}>
-                <Text style={styles.markerLabel} numberOfLines={1}>{wp.name}</Text>
+                <Text style={[styles.markerLabel, wp.status === 'completed' && { color: colors.success }]} numberOfLines={1}>
+                  {wp.name}
+                </Text>
                 <Text style={styles.markerElev}>{wp.elevation}</Text>
               </View>
             </TouchableOpacity>
@@ -518,9 +582,15 @@ export default function MapViewScreen({ route, navigation }) {
                   styles.wpDot,
                   { backgroundColor: STATUS_COLOR[wp.status] },
                   wp.status === 'current' && styles.wpDotCurrent,
-                ]} />
+                ]}>
+                  {wp.status === 'completed' && (
+                    <Animated.View style={{ transform: [{ scale: checkScales[i] }] }}>
+                      <Check size={10} color="#fff" strokeWidth={3.5} />
+                    </Animated.View>
+                  )}
+                </View>
                 <View style={styles.wpInfo}>
-                  <Text style={[styles.wpName, wp.status === 'current' && styles.wpNameCurrent]}>
+                  <Text style={[styles.wpName, wp.status === 'current' && styles.wpNameCurrent, wp.status === 'completed' && { color: colors.success }]}>
                     {wp.name}
                     {wp.status === 'current' && (
                       <Text style={styles.youAreHere}> ← you are here</Text>
@@ -528,7 +598,19 @@ export default function MapViewScreen({ route, navigation }) {
                   </Text>
                   <Text style={styles.wpElev}>{wp.elevation}</Text>
                 </View>
-                {wp.status === 'completed' && <Text style={styles.wpCheck}>✓</Text>}
+                {wp.status === 'completed' ? (
+                  <View style={styles.wpCheckBadge}>
+                    <Check size={12} color={colors.success} strokeWidth={3} />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.wpMarkBtn}
+                    onPress={() => manualMark(i)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.wpMarkBtnText}>Mark</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
 
@@ -729,6 +811,11 @@ const styles = StyleSheet.create({
     width: 22, height: 22, borderRadius: 11,
     shadowColor: colors.primary, shadowOpacity: 0.5, shadowRadius: 6, elevation: 4,
   },
+  markerCompleted: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+    width: 20, height: 20, borderRadius: 10,
+  },
   markerInner: { width: 8, height: 8, borderRadius: 4 },
   markerLabelWrap: {
     alignItems: 'center', marginTop: 2,
@@ -808,6 +895,21 @@ const styles = StyleSheet.create({
   youAreHere:   { fontSize: 11, fontWeight: '700', color: colors.primary, fontStyle: 'italic' },
   wpElev:       { fontSize: 12, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
   wpCheck:      { color: colors.success, fontWeight: '900', fontSize: 16, marginLeft: 8 },
+  wpCheckBadge: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#EDF7F0',
+    alignItems: 'center', justifyContent: 'center',
+    marginLeft: 8,
+  },
+  wpMarkBtn: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1.5, borderColor: colors.primary,
+    marginLeft: 8,
+  },
+  wpMarkBtnText: {
+    fontSize: 11, fontWeight: '700', color: colors.primary, letterSpacing: 0.3,
+  },
 
   trailMeta:  { marginTop: 16, paddingTop: 14, borderTopWidth: 1 },
   metaRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },

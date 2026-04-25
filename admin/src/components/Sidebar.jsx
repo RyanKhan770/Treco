@@ -1,14 +1,20 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { 
+  DashboardSquare01Icon, UserMultipleIcon, MountainIcon, 
+  UserGroupIcon, ClipboardIcon, Flag01Icon, 
+  UserCheck01Icon, Alert01Icon, Logout01Icon 
+} from 'hugeicons-react';
 
 const NAV = [
-  { to: '/',                  label: 'Dashboard',           icon: '📊' },
-  { to: '/users',             label: 'Users',               icon: '👥' },
-  { to: '/trails',            label: 'Trails',              icon: '🏔️' },
-  { to: '/groups',            label: 'Groups',              icon: '🤝' },
-  { to: '/organizer-requests',label: 'Organizer Requests',  icon: '📋' },
-  { to: '/reports',           label: 'Reports',             icon: '🚩' },
-  { to: '/verifications',     label: 'Verifications',       icon: '✅' },
+  { to: '/',                  label: 'Dashboard',           icon: <DashboardSquare01Icon size={20} /> },
+  { to: '/users',             label: 'Users',               icon: <UserMultipleIcon size={20} /> },
+  { to: '/trails',            label: 'Trails',              icon: <MountainIcon size={20} /> },
+  { to: '/groups',            label: 'Groups',              icon: <UserGroupIcon size={20} /> },
+  { to: '/organizer-requests',label: 'Organizer Requests',  icon: <ClipboardIcon size={20} /> },
+  { to: '/reports',           label: 'Reports',             icon: <Flag01Icon size={20} /> },
+  { to: '/verifications',     label: 'Verifications',       icon: <UserCheck01Icon size={20} /> },
+  { to: '/sos-alerts',        label: 'SOS Alerts',          icon: <Alert01Icon size={20} /> },
 ];
 
 export default function Sidebar() {
@@ -21,7 +27,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 min-h-screen bg-primary flex flex-col shadow-xl flex-shrink-0">
+    <aside className="w-64 h-screen sticky top-0 bg-primary flex flex-col shadow-xl flex-shrink-0">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-white/10">
         <h1 className="text-white text-2xl font-black tracking-wide">Treco</h1>
@@ -40,7 +46,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {NAV.map((item) => (
           <NavLink
             key={item.to}
@@ -61,12 +67,12 @@ export default function Sidebar() {
       </nav>
 
       {/* Logout */}
-      <div className="px-3 py-4 border-t border-white/10">
+      <div className="px-3 py-4 border-t border-white/10 mt-auto">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:bg-white/10 hover:text-white transition-colors"
         >
-          <span>🚪</span> Log Out
+          <Logout01Icon size={20} /> Log Out
         </button>
       </div>
     </aside>

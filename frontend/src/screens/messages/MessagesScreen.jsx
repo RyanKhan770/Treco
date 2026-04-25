@@ -1,10 +1,11 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, StatusBar, TextInput,
   ActivityIndicator, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, PenSquare, Users, MessageCircle } from 'lucide-react-native';
+import { Search01Icon, Edit02Icon, UserGroupIcon, BubbleChatIcon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import {
@@ -74,6 +75,9 @@ const MessagesScreen = ({ navigation }) => {
   const filteredDMs = dmConvos.filter((d) =>
     (d.partner_name || '').toLowerCase().includes(q),
   );
+  // Split DMs by connection status
+  const connectedDMs = filteredDMs.filter(d => d.is_connected);
+  const requestDMs = filteredDMs.filter(d => !d.is_connected);
 
   const hasContent = filteredGroups.length > 0 || filteredDMs.length > 0;
 
@@ -92,14 +96,14 @@ const MessagesScreen = ({ navigation }) => {
           scaleTo={0.9}
           onPress={() => navigation.navigate('Groups')}
         >
-          <PenSquare size={20} color="#fff" strokeWidth={2.25} />
+          <HugeiconsIcon icon={Edit02Icon} size={20} color="#fff" strokeWidth={2.25} />
         </PressableScale>
       </View>
 
       {/* ── Search ─────────────────────────────────────────────────────────── */}
       <SlideUp delay={100} style={{ paddingHorizontal: spacing.md, marginBottom: spacing.sm }}>
         <View style={styles.search}>
-          <Search size={18} color={colors.textLight} strokeWidth={2.25} />
+          <HugeiconsIcon icon={Search01Icon} size={18} color={colors.textLight} strokeWidth={2.25} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search conversations…"
@@ -161,7 +165,7 @@ const MessagesScreen = ({ navigation }) => {
                             <View style={styles.rowTop}>
                               <Text style={styles.name} numberOfLines={1}>{g.name}</Text>
                               <View style={styles.memBadge}>
-                                <Users size={10} color={colors.textLight} strokeWidth={2.5} />
+                                <HugeiconsIcon icon={UserGroupIcon} size={10} color={colors.textLight} strokeWidth={2.5} />
                                 <Text style={styles.memText}>{g.current_members ?? 0}</Text>
                               </View>
                             </View>
@@ -176,12 +180,12 @@ const MessagesScreen = ({ navigation }) => {
                 </>
               )}
 
-              {/* ── Direct messages ──────────────────────────────────────── */}
-              {filteredDMs.length > 0 && (
+              {/* ── Connected DMs ────────────────────────────────────── */}
+              {connectedDMs.length > 0 && (
                 <>
                   <Text style={styles.sectionLabel}>Direct Messages</Text>
                   <Stagger initialDelay={filteredGroups.length * 35 + 100} step={35} distance={12}>
-                    {filteredDMs.map((d) => {
+                    {connectedDMs.map((d) => {
                       const color = avatarColor(d.partner_name);
                       const abbr = initials(d.partner_name);
                       const unread = parseInt(d.unread_count || '0', 10);
@@ -225,6 +229,56 @@ const MessagesScreen = ({ navigation }) => {
                   </Stagger>
                 </>
               )}
+
+              {/* ── Message requests from non-connected users ─────────── */}
+              {requestDMs.length > 0 && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: colors.textLight }]}>Message Requests</Text>
+                  <Stagger initialDelay={200} step={35} distance={12}>
+                    {requestDMs.map((d) => {
+                      const color = avatarColor(d.partner_name);
+                      const abbr = initials(d.partner_name);
+                      const unread = parseInt(d.unread_count || '0', 10);
+                      return (
+                        <PressableScale
+                          key={`req-${d.partner_id}`}
+                          style={[styles.row, { opacity: 0.75, borderLeftWidth: 3, borderLeftColor: colors.warning }]}
+                          onPress={() => navigation.navigate('Chat', {
+                            isDM: true,
+                            receiverId: d.partner_id,
+                            receiverName: d.partner_name,
+                            groupName: d.partner_name,
+                          })}
+                          scaleTo={0.99}
+                        >
+                          <View style={[styles.avatar, { backgroundColor: color }]}>
+                            <Text style={styles.avatarText}>{abbr}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.rowTop}>
+                              <Text style={styles.name} numberOfLines={1}>{d.partner_name}</Text>
+                              <Text style={styles.time}>{timeAgo(d.last_at)}</Text>
+                            </View>
+                            <View style={styles.rowBottom}>
+                              <Text
+                                style={[styles.preview, unread > 0 && styles.previewUnread]}
+                                numberOfLines={1}
+                              >
+                                {d.last_message || 'Message request'}
+                              </Text>
+                              {unread > 0 && (
+                                <View style={styles.unreadBadge}>
+                                  <Text style={styles.unreadText}>{unread > 99 ? '99+' : unread}</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </PressableScale>
+                      );
+                    })}
+                  </Stagger>
+                </>
+              )}
             </>
           )}
         </ScrollView>
@@ -248,16 +302,15 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: fontSize.xxxl, fontWeight: fontWeight.bold, color: colors.text, letterSpacing: -0.5, marginTop: 2 },
   composeBtn: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center', ...shadows.md,
   },
 
   search: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.card, borderRadius: radius.round,
+    backgroundColor: colors.surface, borderRadius: radius.round,
     paddingVertical: 12, paddingHorizontal: spacing.md,
-    ...shadows.sm,
   },
   searchInput: { flex: 1, fontSize: fontSize.md, color: colors.text, paddingVertical: 0 },
 
@@ -272,7 +325,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingHorizontal: spacing.md, paddingVertical: spacing.md,
     marginHorizontal: spacing.md, marginBottom: spacing.sm,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     gap: spacing.sm,
     ...shadows.xs,
   },

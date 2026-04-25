@@ -1,20 +1,22 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, StatusBar,
   ActivityIndicator, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Search, Plus, Calendar, Users, Star, MessageCircle,
-  UserCheck, MapPin, Compass,
-} from 'lucide-react-native';
+import { Search01Icon, PlusSignIcon, Calendar01Icon, UserGroupIcon, StarIcon, BubbleChatIcon, UserCheck01Icon, UserAdd01Icon, MapPinIcon, Compass01Icon, Clock01Icon, Tick01Icon } from '@hugeicons/core-free-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import {
   Badge, Card, Chip, PressableScale, Stagger, FadeIn, SlideUp, EmptyState,
 } from '../../components/ui';
 import { EmptyMessagesIllustration } from '../../assets/svg/Illustrations';
-import { groupsAPI, userAPI } from '../../services/api';
+import { groupsAPI, userAPI, connectionsAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { loadUser } from '../../store/slices/authSlice';
 
 const TABS = ['All groups', 'My groups', 'Connect'];
 const DIFF_TONE = { Easy: 'success', Moderate: 'warning', Hard: 'danger' };
@@ -50,7 +52,7 @@ function GroupCard({ group, onPress }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
           <View style={styles.dateRow}>
-            <Calendar size={12} color={colors.primary} strokeWidth={2.25} />
+            <HugeiconsIcon icon={Calendar01Icon} size={12} color={colors.primary} strokeWidth={2.25} />
             <Text style={styles.dateText}>{formatDate(group.start_date, group.end_date)}</Text>
           </View>
         </View>
@@ -61,7 +63,7 @@ function GroupCard({ group, onPress }) {
       )}
       {!!group.trail_name && (
         <View style={styles.trailRow}>
-          <MapPin size={11} color={colors.primaryLight} strokeWidth={2} />
+          <HugeiconsIcon icon={MapPinIcon} size={11} color={colors.primaryLight} strokeWidth={2} />
           <Text style={styles.trailText} numberOfLines={1}>{group.trail_name}</Text>
         </View>
       )}
@@ -84,9 +86,34 @@ function GroupCard({ group, onPress }) {
   );
 }
 
-function ConnectCard({ person, onMessage, onPress }) {
+function ConnectCard({ person, onConnect, onMessage, connectionStatus, onPress }) {
   const color = avatarColor(person.name);
   const isOrg = person.role === 'organizer' || person.role === 'admin';
+  const status = connectionStatus || 'none'; // none, pending, accepted
+
+  const ActionButton = () => {
+    if (status === 'accepted') {
+      return (
+        <TouchableOpacity style={styles.connectedBtn} onPress={onMessage} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <HugeiconsIcon icon={BubbleChatIcon} size={16} color={colors.primary} strokeWidth={2.25} />
+        </TouchableOpacity>
+      );
+    }
+    if (status === 'pending') {
+      return (
+        <View style={styles.pendingBtn}>
+          <HugeiconsIcon icon={Clock01Icon} size={14} color={colors.textLight} strokeWidth={2} />
+          <Text style={styles.pendingBtnText}>Pending</Text>
+        </View>
+      );
+    }
+    return (
+      <TouchableOpacity style={styles.addFriendBtn} onPress={onConnect} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <HugeiconsIcon icon={UserAdd01Icon} size={15} color="#fff" strokeWidth={2.25} />
+        <Text style={styles.addFriendText}>Add</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <PressableScale style={styles.connectCard} onPress={onPress} scaleTo={0.98}>
@@ -96,7 +123,8 @@ function ConnectCard({ person, onMessage, onPress }) {
       <View style={{ flex: 1 }}>
         <View style={styles.connectNameRow}>
           <Text style={styles.connectName} numberOfLines={1}>{person.name}</Text>
-          {!!person.is_verified && <UserCheck size={13} color={colors.info} strokeWidth={2.5} />}
+          {!!person.is_verified && <HugeiconsIcon icon={UserCheck01Icon} size={13} color={colors.info} strokeWidth={2.5} />}
+          {status === 'accepted' && <HugeiconsIcon icon={Tick01Icon} size={13} color={colors.success} strokeWidth={2.5} />}
           {isOrg && (
             <View style={styles.orgBadge}>
               <Text style={styles.orgBadgeText}>Organizer</Text>
@@ -106,41 +134,49 @@ function ConnectCard({ person, onMessage, onPress }) {
         <View style={styles.connectMeta}>
           {!!person.overall_rating && (
             <View style={styles.metaChip}>
-              <Star size={10} color={colors.warning} fill={colors.warning} strokeWidth={0} />
+              <HugeiconsIcon icon={StarIcon} size={10} color={colors.warning} fill={colors.warning} strokeWidth={0} />
               <Text style={styles.metaChipText}>{Number(person.overall_rating).toFixed(1)}</Text>
             </View>
           )}
           {!!person.total_treks && (
             <View style={styles.metaChip}>
-              <Compass size={10} color={colors.primaryLight} strokeWidth={2} />
+              <HugeiconsIcon icon={Compass01Icon} size={10} color={colors.primaryLight} strokeWidth={2} />
               <Text style={styles.metaChipText}>{person.total_treks} treks</Text>
             </View>
           )}
           {!!person.location && (
             <View style={styles.metaChip}>
-              <MapPin size={10} color={colors.textLight} strokeWidth={2} />
+              <HugeiconsIcon icon={MapPinIcon} size={10} color={colors.textLight} strokeWidth={2} />
               <Text style={styles.metaChipText} numberOfLines={1}>{person.location}</Text>
             </View>
           )}
         </View>
         {!!person.bio && <Text style={styles.connectBio} numberOfLines={1}>{person.bio}</Text>}
       </View>
-      <TouchableOpacity style={styles.msgBtn} onPress={onMessage} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <MessageCircle size={18} color={colors.primary} strokeWidth={2.25} />
-      </TouchableOpacity>
+      <ActionButton />
     </PressableScale>
   );
 }
 
 export default function GroupsScreen({ navigation }) {
+  const { user } = useAuth();
+  const dispatch = useDispatch();
   const [activeTab,  setActiveTab]  = useState('All groups');
   const [search,     setSearch]     = useState('');
   const [allGroups,  setAllGroups]  = useState([]);
   const [myGroups,   setMyGroups]   = useState([]);
   const [people,     setPeople]     = useState([]);
+  const [connStatuses, setConnStatuses] = useState({});
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState(null);
+
+  // Re-fetch auth state on every focus so role changes (e.g. admin approval) are reflected immediately.
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(loadUser());
+    }, [dispatch])
+  );
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -153,16 +189,31 @@ export default function GroupsScreen({ navigation }) {
         const res = await groupsAPI.getMyGroups();
         setMyGroups(res.data);
       } else {
-        const res = await userAPI.getOrganizers();
-        setPeople(res.data);
+        // browseUsers already returns role field, so one call is enough.
+        // Connection-status calls are auxiliary — failures return [] gracefully.
+        const [allUsers, connections, sent] = await Promise.all([
+          userAPI.browseUsers().then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+          connectionsAPI.getAll().then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+          connectionsAPI.getSent().then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+        ]);
+        const statusMap = {};
+        connections.forEach(c => { statusMap[c.user_id] = 'accepted'; });
+        sent.forEach(c => { statusMap[c.receiver_id] = 'pending'; });
+        setConnStatuses(statusMap);
+        // Sort organizers/admins to the top
+        const sorted = [...allUsers].sort((a, b) => {
+          const rank = r => r === 'admin' ? 0 : r === 'organizer' ? 1 : 2;
+          return rank(a.role) - rank(b.role);
+        });
+        setPeople(sorted);
       }
-    } catch {
-      setError('Could not load data. Check your connection.');
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Could not load data. Check your connection.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeTab]);
+  }, [activeTab, user?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -193,23 +244,38 @@ export default function GroupsScreen({ navigation }) {
       if (filteredPeople.length === 0) return (
         <EmptyState
           illustration={<EmptyMessagesIllustration size={160} />}
-          title="No organizers found"
-          subtitle="Check back soon — organizers are joining Treco every day."
+          title="No trekkers found"
+          subtitle="Check back soon — trekkers are joining Treco every day."
         />
       );
+
+      const handleConnect = async (personId) => {
+        try {
+          await connectionsAPI.sendRequest(personId);
+          setConnStatuses(prev => ({ ...prev, [personId]: 'pending' }));
+        } catch (err) {
+          const msg = err?.response?.data?.message || '';
+          if (msg.includes('Already') || msg.includes('pending')) {
+            setConnStatuses(prev => ({ ...prev, [personId]: 'pending' }));
+          }
+        }
+      };
+
       return (
         <Stagger initialDelay={100} step={35} distance={14}>
           {filteredPeople.map((p) => (
             <ConnectCard
               key={p.id}
               person={p}
+              connectionStatus={connStatuses[p.id] || 'none'}
+              onConnect={() => handleConnect(p.id)}
               onMessage={() => navigation.navigate('Chat', {
                 isDM: true,
                 receiverId: p.id,
                 receiverName: p.name,
                 groupName: p.name,
               })}
-              onPress={() => {}}
+              onPress={() => navigation.navigate('UserProfile', { userId: p.id })}
             />
           ))}
         </Stagger>
@@ -241,14 +307,16 @@ export default function GroupsScreen({ navigation }) {
           <Text style={styles.overline}>Community</Text>
           <Text style={styles.title}>Groups</Text>
         </FadeIn>
-        <PressableScale style={styles.createBtn} onPress={() => navigation.navigate('CreateTrip')} scaleTo={0.9}>
-          <Plus size={22} color="#fff" strokeWidth={2.5} />
-        </PressableScale>
+        {(user?.role === 'organizer' || user?.role === 'admin') && (
+          <PressableScale style={styles.createBtn} onPress={() => navigation.navigate('CreateTrip')} scaleTo={0.9}>
+            <HugeiconsIcon icon={PlusSignIcon} size={22} color="#fff" strokeWidth={2.5} />
+          </PressableScale>
+        )}
       </View>
 
       <SlideUp delay={100} style={{ paddingHorizontal: spacing.md, marginBottom: spacing.sm }}>
         <View style={styles.search}>
-          <Search size={18} color={colors.textLight} strokeWidth={2.25} />
+          <HugeiconsIcon icon={Search01Icon} size={18} color={colors.textLight} strokeWidth={2.25} />
           <TextInput
             style={styles.searchInput}
             placeholder={activeTab === 'Connect' ? 'Search organizers, trekkers…' : 'Search groups, destinations…'}
@@ -321,4 +389,22 @@ const styles = StyleSheet.create({
   metaChipText: { fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.medium },
   connectBio: { fontSize: 11, color: colors.textLight, lineHeight: 16 },
   msgBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryPale, alignItems: 'center', justifyContent: 'center' },
+  addFriendBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.primary, borderRadius: radius.round,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  addFriendText: { color: '#fff', fontSize: 12, fontWeight: fontWeight.bold },
+  pendingBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.surface, borderRadius: radius.round,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  pendingBtnText: { color: colors.textLight, fontSize: 11, fontWeight: fontWeight.medium },
+  connectedBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.primaryPale,
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

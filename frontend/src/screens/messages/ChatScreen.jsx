@@ -1,12 +1,14 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, StatusBar,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  ChevronLeft, MoreVertical, Send, MapPin, CheckSquare, Paperclip,
-} from 'lucide-react-native';
+import { ArrowLeft02Icon, MoreVerticalCircle01Icon, SentIcon, MapPinIcon, Tick02Icon, Attachment01Icon } from '@hugeicons/core-free-icons';
+import { io } from 'socket.io-client';
+import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
@@ -41,7 +43,6 @@ function formatDateLabel(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Insert date separator items between messages from different days
 function insertDateSeparators(msgs) {
   const items = [];
   let lastDate = null;
@@ -56,6 +57,15 @@ function insertDateSeparators(msgs) {
   return items;
 }
 
+function getSocketUrl() {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace('/api', '');
+  }
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  if (host) return `http://${host}:5000`;
+  return 'http://localhost:5000';
+}
+
 const ChatScreen = ({ route, navigation }) => {
   const { groupId, groupName, isDM, receiverId, receiverName } = route.params;
   const { user } = useAuth();
@@ -64,7 +74,9 @@ const ChatScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState('');
+  const [socketConnected, setSocketConnected] = useState(false);
   const flatRef = useRef(null);
+  const socketRef = useRef(null);
   const pollRef = useRef(null);
 
   const displayName = isDM ? (receiverName || groupName) : groupName;
@@ -76,41 +88,107 @@ const ChatScreen = ({ route, navigation }) => {
         ? await dmAPI.getMessages(receiverId)
         : await messagesAPI.getGroupMessages(groupId);
       setMessages(res.data || []);
-    } catch (err) {
+    } catch {
       // Silently fail on background polls
     } finally {
       setLoading(false);
     }
   }, [isDM, receiverId, groupId]);
 
+  // ── Socket.io connection ────────────────────────────────────────────────
+  useEffect(() => {
+    let socket;
+
+    const connect = async () => {
+      const token = await AsyncStorage.getItem('token');
+      socket = io(getSocketUrl(), {
+        transports: ['websocket'],
+        auth: { token },
+        reconnectionAttempts: 5,
+        timeout: 10000,
+      });
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        setSocketConnected(true);
+        if (isDM) {
+          socket.emit('join_dm', { myUserId: user?.id });
+        } else {
+          socket.emit('join_group', { groupId, userId: user?.id });
+        }
+      });
+
+      socket.on('disconnect', () => setSocketConnected(false));
+      socket.on('connect_error', () => setSocketConnected(false));
+
+      // Incoming messages (deduplicated by id)
+      const addMsg = (msg) =>
+        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+
+      socket.on('new_message', addMsg);
+      socket.on('new_dm', addMsg);
+    };
+
+    connect();
+
+    return () => {
+      socket?.disconnect();
+      socketRef.current = null;
+    };
+  }, [isDM, receiverId, groupId, user?.id]);
+
+  // ── Initial load + polling fallback when socket is offline ─────────────
   useEffect(() => {
     fetchMessages();
-    // Poll every 4 seconds for new messages
-    pollRef.current = setInterval(() => fetchMessages(true), 4000);
+    pollRef.current = setInterval(() => {
+      if (!socketRef.current?.connected) fetchMessages(true);
+    }, 5000);
     return () => clearInterval(pollRef.current);
   }, [fetchMessages]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [messages.length]);
 
+  // ── Send ────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const content = text.trim();
     if (!content || sending) return;
+    setSending(true);
+    setText('');
+
     try {
-      setSending(true);
-      setText('');
-      if (isDM) {
-        await dmAPI.send(receiverId, content);
+      if (socketRef.current?.connected) {
+        // Real-time path — server saves + broadcasts; we receive it via new_message/new_dm
+        if (isDM) {
+          socketRef.current.emit('send_dm', {
+            senderId: user?.id,
+            receiverId,
+            content,
+            senderName: user?.name,
+          });
+        } else {
+          socketRef.current.emit('send_message', {
+            groupId,
+            senderId: user?.id,
+            content,
+            senderName: user?.name,
+          });
+        }
       } else {
-        await messagesAPI.send(groupId, content);
+        // REST fallback when socket is disconnected
+        if (isDM) {
+          await dmAPI.send(receiverId, content);
+        } else {
+          await messagesAPI.send(groupId, content);
+        }
+        await fetchMessages(true);
       }
-      await fetchMessages(true);
-    } catch (err) {
-      setText(content); // Restore on error
+    } catch {
+      setText(content); // Restore on failure
     } finally {
       setSending(false);
     }
@@ -165,10 +243,10 @@ const ChatScreen = ({ route, navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
-        {/* ── Header ───────────────────────────────────────────────────────── */}
+        {/* ── Header ─────────────────────────────────────────────────────── */}
         <FadeIn style={styles.header}>
           <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn} scaleTo={0.9}>
-            <ChevronLeft size={22} color={colors.text} strokeWidth={2.25} />
+            <HugeiconsIcon icon={ArrowLeft02Icon} size={22} color={colors.text} strokeWidth={2.25} />
           </PressableScale>
           <View style={styles.headerCenter}>
             <View style={[styles.headerAvatar, { backgroundColor: avatarColor2 }]}>
@@ -181,12 +259,17 @@ const ChatScreen = ({ route, navigation }) => {
               </Text>
             </View>
           </View>
-          <PressableScale style={styles.iconBtn} scaleTo={0.9}>
-            <MoreVertical size={20} color={colors.text} strokeWidth={2.25} />
+          {socketConnected && <View style={styles.liveDot} />}
+          <PressableScale 
+            style={styles.iconBtn} 
+            scaleTo={0.9} 
+            onPress={() => !isDM && navigation.navigate('GroupDetail', { groupId })}
+          >
+            <HugeiconsIcon icon={MoreVerticalCircle01Icon} size={20} color={colors.text} strokeWidth={2.25} />
           </PressableScale>
         </FadeIn>
 
-        {/* ── Messages ─────────────────────────────────────────────────────── */}
+        {/* ── Messages ─────────────────────────────────────────────────── */}
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={colors.primary} size="large" />
@@ -210,28 +293,32 @@ const ChatScreen = ({ route, navigation }) => {
           />
         )}
 
-        {/* ── Quick actions (group only) ────────────────────────────────────── */}
+        {/* ── Quick actions (group only) ────────────────────────────────── */}
         {!isDM && (
           <View style={styles.quickActions}>
-            <PressableScale style={styles.quickBtn} scaleTo={0.95}>
-              <MapPin size={14} color={colors.primary} strokeWidth={2.25} />
-              <Text style={styles.quickBtnText}>Location</Text>
+            <PressableScale 
+              style={styles.quickBtn} 
+              scaleTo={0.95}
+              onPress={() => navigation.navigate('GroupDetail', { groupId })}
+            >
+              <HugeiconsIcon icon={MapPinIcon} size={14} color={colors.primary} strokeWidth={2.25} />
+              <Text style={styles.quickBtnText}>Details</Text>
             </PressableScale>
             <PressableScale
               style={styles.quickBtn}
               onPress={() => navigation.navigate('Checklist', { groupId })}
               scaleTo={0.95}
             >
-              <CheckSquare size={14} color={colors.primary} strokeWidth={2.25} />
+              <HugeiconsIcon icon={Tick02Icon} size={14} color={colors.primary} strokeWidth={2.25} />
               <Text style={styles.quickBtnText}>Checklist</Text>
             </PressableScale>
           </View>
         )}
 
-        {/* ── Input ─────────────────────────────────────────────────────────── */}
+        {/* ── Input ─────────────────────────────────────────────────────── */}
         <View style={styles.inputRow}>
           <PressableScale style={styles.attachBtn} scaleTo={0.9}>
-            <Paperclip size={18} color={colors.textSecondary} strokeWidth={2.25} />
+            <HugeiconsIcon icon={Attachment01Icon} size={18} color={colors.textSecondary} strokeWidth={2.25} />
           </PressableScale>
           <TextInput
             style={styles.input}
@@ -251,7 +338,7 @@ const ChatScreen = ({ route, navigation }) => {
           >
             {sending
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Send size={18} color="#fff" strokeWidth={2.5} />
+              : <HugeiconsIcon icon={SentIcon} size={18} color="#fff" strokeWidth={2.5} />
             }
           </PressableScale>
         </View>
@@ -286,6 +373,11 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center',
+  },
+  liveDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#22C55E',
+    marginRight: 4,
   },
 
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },

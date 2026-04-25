@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
 });
 
 api.interceptors.request.use((config) => {
@@ -28,10 +28,16 @@ export const authAPI = {
 
 export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
+  getAnalytics: () => api.get('/admin/analytics'),
   getUsers: () => api.get('/admin/users'),
+  getUser: (id) => api.get(`/admin/users/${id}`),
   setRole: (id, role) => api.patch(`/admin/users/${id}/role`, { role }),
   verifyUser: (id, status) => api.patch(`/admin/users/${id}/verify`, { status }),
+  banUser: (id, banned) => api.patch(`/admin/users/${id}/ban`, { banned }),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  getGroups: () => api.get('/admin/groups'),
+  closeGroup: (id) => api.patch(`/admin/groups/${id}/close`),
+  deleteGroup: (id) => api.delete(`/admin/groups/${id}`),
 };
 
 export const trailsAPI = {

@@ -8,9 +8,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { loadUser } from '../store/slices/authSlice';
 import { colors } from '../constants/colors';
 import { fontSize, fontWeight, shadows } from '../constants/theme';
-import {
-  Home, Compass, Users, MessageCircle, User,
-} from 'lucide-react-native';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { Home01Icon, Compass01Icon, UserGroupIcon, BubbleChatIcon, UserIcon } from '@hugeicons/core-free-icons';
 
 // Auth screens
 import SplashScreen from '../screens/SplashScreen';
@@ -27,6 +26,7 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 
 // Stack screens
 import TrailDetailScreen from '../screens/explore/TrailDetailScreen';
+import RecordTrekScreen from '../screens/explore/RecordTrekScreen';
 import MapViewScreen from '../screens/shared/MapViewScreen';
 import GroupDetailScreen from '../screens/groups/GroupDetailScreen';
 import CreateTripScreen from '../screens/groups/CreateTripScreen';
@@ -40,21 +40,31 @@ import OfflineMapsScreen from '../screens/shared/OfflineMapsScreen';
 import VerifyIdentityScreen from '../screens/profile/VerifyIdentityScreen';
 import ReportIssueScreen from '../screens/shared/ReportIssueScreen';
 import MyTripsScreen from '../screens/profile/MyTripsScreen';
+import MyPostsScreen from '../screens/profile/MyPostsScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
 import PrivacyScreen from '../screens/profile/PrivacyScreen';
+import EmergencyContactsScreen from '../screens/profile/EmergencyContactsScreen';
 import HelpCenterScreen from '../screens/shared/HelpCenterScreen';
+import SavedTrailsScreen from '../screens/profile/SavedTrailsScreen';
+import PlanTripScreen from '../screens/shared/PlanTripScreen';
+import OrganizerRequestScreen from '../screens/profile/OrganizerRequestScreen';
+import UserProfileScreen from '../screens/shared/UserProfileScreen';
+import CreatePostScreen from '../screens/home/CreatePostScreen';
+import PostDetailScreen from '../screens/home/PostDetailScreen';
+import WriteReviewScreen from '../screens/profile/WriteReviewScreen';
+import WriteTrailReviewScreen from '../screens/explore/WriteTrailReviewScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
-  Home:     Home,
-  Explore:  Compass,
-  Groups:   Users,
-  Messages: MessageCircle,
-  Profile:  User,
+  Home:     Home01Icon,
+  Explore:  Compass01Icon,
+  Groups:   UserGroupIcon,
+  Messages: BubbleChatIcon,
+  Profile:  UserIcon,
 };
 
 function CustomTabBar({ state, descriptors, navigation }) {
@@ -65,7 +75,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel ?? route.name;
         const isFocused = state.index === index;
-        const Icon = TAB_ICONS[route.name] || Home;
+        const Icon = TAB_ICONS[route.name] || Home01Icon;
 
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -81,10 +91,10 @@ function CustomTabBar({ state, descriptors, navigation }) {
               ]}
               onTouchEnd={onPress}
             >
-              <Icon
-                size={22}
+              <HugeiconsIcon
+                icon={Icon}
+                size={24}
                 color={isFocused ? colors.primary : colors.textLight}
-                strokeWidth={isFocused ? 2.5 : 1.8}
               />
             </View>
             <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
@@ -128,6 +138,7 @@ function AppStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs"      component={MainTabs} />
       <Stack.Screen name="TrailDetail"   component={TrailDetailScreen} />
+      <Stack.Screen name="RecordTrek"    component={RecordTrekScreen} />
       <Stack.Screen name="TrailMap"      component={MapViewScreen} />
       <Stack.Screen name="GroupDetail"   component={GroupDetailScreen} />
       <Stack.Screen name="CreateTrip"    component={CreateTripScreen} />
@@ -145,7 +156,17 @@ function AppStack() {
       <Stack.Screen name="EditProfile"     component={EditProfileScreen} />
       <Stack.Screen name="ChangePassword"  component={ChangePasswordScreen} />
       <Stack.Screen name="Privacy"         component={PrivacyScreen} />
+      <Stack.Screen name="EmergencyContacts" component={EmergencyContactsScreen} />
       <Stack.Screen name="HelpCenter"      component={HelpCenterScreen} />
+      <Stack.Screen name="SavedTrails"     component={SavedTrailsScreen} />
+      <Stack.Screen name="PlanTrip"            component={PlanTripScreen} />
+      <Stack.Screen name="OrganizerRequest"   component={OrganizerRequestScreen} />
+      <Stack.Screen name="UserProfile"        component={UserProfileScreen} />
+      <Stack.Screen name="CreatePost"         component={CreatePostScreen} />
+      <Stack.Screen name="PostDetail"         component={PostDetailScreen} />
+      <Stack.Screen name="WriteReview"     component={WriteReviewScreen} />
+      <Stack.Screen name="WriteTrailReview" component={WriteTrailReviewScreen} />
+      <Stack.Screen name="MyPosts"         component={MyPostsScreen} />
     </Stack.Navigator>
   );
 }

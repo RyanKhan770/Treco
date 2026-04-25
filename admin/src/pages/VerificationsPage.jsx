@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { adminAPI } from '../services/api';
 import DataTable from '../components/DataTable';
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
+
 const STATUS_COLORS = {
   unverified: 'bg-gray-100 text-gray-500',
   pending:    'bg-amber-100 text-amber-700',
@@ -12,6 +14,7 @@ const STATUS_COLORS = {
 export default function VerificationsPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [previewImg, setPreviewImg] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -62,6 +65,17 @@ export default function VerificationsPage() {
       ),
     },
     {
+      key: 'gov_id_photo', label: 'Gov ID',
+      render: (val) => val ? (
+        <button
+          onClick={() => setPreviewImg(val.startsWith('http') ? val : `${API_BASE}${val}`)}
+          className="text-xs text-primary font-semibold hover:underline"
+        >
+          📄 View ID
+        </button>
+      ) : <span className="text-xs text-gray-400">Not uploaded</span>,
+    },
+    {
       key: 'created_at', label: 'Submitted',
       render: (val) => val ? new Date(val).toLocaleDateString() : '—',
     },
@@ -105,6 +119,32 @@ export default function VerificationsPage() {
         <div className="bg-white rounded-xl h-64 animate-pulse border border-gray-100" />
       ) : (
         <DataTable columns={columns} data={users} emptyMessage="No verifications found." />
+      )}
+
+      {/* Gov ID preview modal */}
+      {previewImg && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6"
+          onClick={() => setPreviewImg(null)}
+        >
+          <div className="bg-white rounded-2xl p-4 max-w-lg w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700 text-sm">Government ID Preview</h3>
+              <button
+                onClick={() => setPreviewImg(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <img
+              src={previewImg}
+              alt="Government ID"
+              className="w-full rounded-lg border border-gray-200"
+              onError={(e) => { e.target.src = ''; e.target.alt = 'Failed to load image'; }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

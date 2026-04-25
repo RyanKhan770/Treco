@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   profile_photo TEXT,
   bio TEXT,
   location VARCHAR(100) DEFAULT 'Kathmandu, Nepal',
-  role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'organizer', 'admin')),
+  role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'organizer', 'admin', 'banned')),
   experience_level VARCHAR(20) DEFAULT 'beginner',
   overall_rating DECIMAL(3,2) DEFAULT 0,
   total_treks INT DEFAULT 0,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Trails table
 CREATE TABLE IF NOT EXISTS trails (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(200) NOT NULL,
+  name VARCHAR(200) NOT NULL UNIQUE,
   description TEXT,
   difficulty VARCHAR(20) CHECK (difficulty IN ('easy','moderate','hard','challenging')),
   distance_km DECIMAL(6,2),
@@ -218,6 +218,28 @@ CREATE TABLE IF NOT EXISTS offline_maps (
   file_size_mb DECIMAL(6,2),
   downloaded_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(user_id, trail_id)
+);
+
+-- Connections (friend/follow system)
+CREATE TABLE IF NOT EXISTS connections (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requester_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status        VARCHAR(20) DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at    TIMESTAMP DEFAULT NOW(),
+  updated_at    TIMESTAMP DEFAULT NOW(),
+  UNIQUE(requester_id, receiver_id)
+);
+
+-- Direct messages
+CREATE TABLE IF NOT EXISTS dm_messages (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content      TEXT NOT NULL,
+  read         BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMP DEFAULT NOW()
 );
 
 -- Indexes

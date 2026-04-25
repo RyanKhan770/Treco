@@ -1,20 +1,8 @@
 /**
  * Direct Messages — /api/dm
  *
- * Uses a lightweight dm_messages table. The "conversation" between two
- * users is identified by sorting their IDs so (A,B) == (B,A).
- *
- * Table DDL (run once):
- *   CREATE TABLE IF NOT EXISTS dm_messages (
- *     id          SERIAL PRIMARY KEY,
- *     sender_id   INTEGER NOT NULL REFERENCES users(id),
- *     receiver_id INTEGER NOT NULL REFERENCES users(id),
- *     content     TEXT NOT NULL,
- *     read        BOOLEAN DEFAULT FALSE,
- *     created_at  TIMESTAMPTZ DEFAULT NOW()
- *   );
- *   CREATE INDEX IF NOT EXISTS dm_convo_idx
- *     ON dm_messages (LEAST(sender_id,receiver_id), GREATEST(sender_id,receiver_id), created_at);
+ * DMs between users. Connected users see messages normally.
+ * Non-connected users can still send messages but they appear as "message requests".
  */
 
 const express = require('express');
@@ -23,10 +11,20 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/dm/inbox  — list of recent DM conversations for the current user
+// Helper: check if two users are connected
+async function areConnected(userA, userB) {
+  const result = await pool.query(
+    `SELECT id FROM connections
+     WHERE ((requester_id = $1 AND receiver_id = $2) OR (requester_id = $2 AND receiver_id = $1))
+       AND status = 'accepted'`,
+    [userA, userB]
+  );
+  return result.rows.length > 0;
+}
+
+// GET /api/dm/inbox — list of recent DM conversations for the current user
 router.get('/inbox', auth, async (req, res) => {
   try {
-    // One row per conversation partner, showing the latest message
     const result = await pool.query(
       `SELECT DISTINCT ON (partner_id)
          partner_id,
@@ -50,17 +48,27 @@ router.get('/inbox', auth, async (req, res) => {
        ORDER BY partner_id, dm.created_at DESC`,
       [req.user.id]
     );
-    res.json(result.rows);
+
+    // Add connection status for each conversation
+    const enriched = await Promise.all(result.rows.map(async (row) => {
+      const connected = await areConnected(req.user.id, row.partner_id);
+      return { ...row, is_connected: connected };
+    }));
+
+    // Sort by most recent message
+    enriched.sort((a, b) => new Date(b.last_at) - new Date(a.last_at));
+
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// GET /api/dm/:userId  — get conversation history with a specific user
+// GET /api/dm/:userId — get conversation history with a specific user
 router.get('/:userId', auth, async (req, res) => {
-  const other = parseInt(req.params.userId, 10);
-  const me    = req.user.id;
+  const other = req.params.userId;
+  const me = req.user.id;
   try {
     const result = await pool.query(
       `SELECT dm.*, u.name AS sender_name, u.profile_photo AS sender_photo
@@ -85,14 +93,14 @@ router.get('/:userId', auth, async (req, res) => {
   }
 });
 
-// POST /api/dm/:userId  — send a direct message
+// POST /api/dm/:userId — send a direct message
 router.post('/:userId', auth, async (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ message: 'Content required' });
-  const receiver = parseInt(req.params.userId, 10);
+  const receiver = req.params.userId;
   try {
     // Verify receiver exists
-    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [receiver]);
+    const userCheck = await pool.query('SELECT id, name FROM users WHERE id = $1', [receiver]);
     if (userCheck.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
     const result = await pool.query(
@@ -100,6 +108,15 @@ router.post('/:userId', auth, async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [req.user.id, receiver, content.trim()]
     );
+
+    // Create notification for receiver
+    const senderName = req.user.name;
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'message', 'New Message', $2, $3)`,
+      [receiver, `${senderName}: ${content.trim().substring(0, 50)}`, JSON.stringify({ from_user_id: req.user.id })]
+    );
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);

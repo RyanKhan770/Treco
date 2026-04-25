@@ -1,27 +1,59 @@
-import React, { useState } from 'react';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Alert, KeyboardAvoidingView, Platform,
+  TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Mail, Phone, MapPin, FileText, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { UserIcon, Mail01Icon, CallIcon, MapPinIcon, File02Icon, Camera01Icon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
 import ScreenHeader from '../../components/ui/ScreenHeader';
 import { PressableScale } from '../../components/ui';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { userAPI, BASE_URL } from '../../services/api';
+import { setUser } from '../../store/slices/authSlice';
 
 export default function EditProfileScreen({ navigation }) {
+  const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
 
-  const [name,      setName]      = useState(user?.name      ?? 'Ryan Khan');
-  const [username,  setUsername]  = useState(user?.username  ?? 'ryankhan');
-  const [email,     setEmail]     = useState(user?.email     ?? 'ryankhan770@gmail.com');
+  const [name,      setName]      = useState(user?.name      ?? '');
+  const [email,     setEmail]     = useState(user?.email     ?? '');
   const [phone,     setPhone]     = useState(user?.phone     ?? '');
   const [location,  setLocation]  = useState(user?.location  ?? 'Kathmandu, Nepal');
-  const [bio,       setBio]       = useState(user?.bio       ?? 'Trekking enthusiast exploring Nepal\'s trails one summit at a time. 🏔️');
+  const [bio,       setBio]       = useState(user?.bio       ?? '');
   const [emergency, setEmergency] = useState(user?.emergency ?? '');
+  const [photo,     setPhoto]     = useState(user?.profile_photo ?? null);
   const [saving,    setSaving]    = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setUploading(true);
+    try {
+      const res = await userAPI.uploadPhoto(uri);
+      setPhoto(res.data.profile_photo);
+      dispatch(setUser({ ...user, profile_photo: res.data.profile_photo }));
+    } catch {
+      Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -29,13 +61,23 @@ export default function EditProfileScreen({ navigation }) {
       return;
     }
     setSaving(true);
-    // TODO: wire to API  —  PUT /api/users/profile
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    Alert.alert('Profile updated', 'Your changes have been saved.', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    try {
+      const res = await userAPI.updateProfile({ name, phone, bio, location });
+      dispatch(setUser({ ...user, ...res.data }));
+      Alert.alert('Profile updated', 'Your changes have been saved.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || 'Could not save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const initial = name.slice(0, 2).toUpperCase() || 'T';
+  const photoUri = photo
+    ? photo.startsWith('http') ? photo : `${BASE_URL.replace('/api', '')}${photo}`
+    : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -61,49 +103,48 @@ export default function EditProfileScreen({ navigation }) {
         >
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {name.slice(0, 2).toUpperCase()}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.avatarEdit} activeOpacity={0.8}>
-              <Camera size={16} color="#fff" strokeWidth={2.5} />
+            <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initial}</Text>
+                </View>
+              )}
+              <View style={styles.avatarEdit}>
+                <HugeiconsIcon icon={Camera01Icon} size={16} color="#fff" strokeWidth={2.5} />
+              </View>
             </TouchableOpacity>
-            <Text style={styles.avatarHint}>Tap to change photo</Text>
+            <Text style={styles.avatarHint}>
+              {uploading ? 'Uploading…' : 'Tap to change photo'}
+            </Text>
           </View>
 
           {/* Fields */}
           <Section label="Basic info">
             <Field
-              icon={<User size={16} color={colors.primary} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={UserIcon} size={16} color={colors.primary} strokeWidth={2.25} />}
               label="Display name"
               value={name}
               onChangeText={setName}
               placeholder="Your full name"
             />
             <Field
-              icon={<Text style={styles.atSign}>@</Text>}
-              label="Username"
-              value={username}
-              onChangeText={(t) => setUsername(t.toLowerCase().replace(/\s/g, ''))}
-              placeholder="username"
-              autoCapitalize="none"
-              isLast
-            />
-          </Section>
-
-          <Section label="Contact">
-            <Field
-              icon={<Mail size={16} color={colors.primary} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={Mail01Icon} size={16} color={colors.primary} strokeWidth={2.25} />}
               label="Email"
               value={email}
               onChangeText={setEmail}
               placeholder="you@email.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={false}
+              isLast
             />
+          </Section>
+
+          <Section label="Contact">
             <Field
-              icon={<Phone size={16} color={colors.primary} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={CallIcon} size={16} color={colors.primary} strokeWidth={2.25} />}
               label="Phone"
               value={phone}
               onChangeText={setPhone}
@@ -115,14 +156,14 @@ export default function EditProfileScreen({ navigation }) {
 
           <Section label="About">
             <Field
-              icon={<MapPin size={16} color={colors.primary} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={MapPinIcon} size={16} color={colors.primary} strokeWidth={2.25} />}
               label="Location"
               value={location}
               onChangeText={setLocation}
               placeholder="City, Country"
             />
             <Field
-              icon={<FileText size={16} color={colors.primary} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={File02Icon} size={16} color={colors.primary} strokeWidth={2.25} />}
               label="Bio"
               value={bio}
               onChangeText={setBio}
@@ -135,7 +176,7 @@ export default function EditProfileScreen({ navigation }) {
 
           <Section label="Safety">
             <Field
-              icon={<Phone size={16} color={colors.error} strokeWidth={2.25} />}
+              icon={<HugeiconsIcon icon={CallIcon} size={16} color={colors.error} strokeWidth={2.25} />}
               label="Emergency contact"
               value={emergency}
               onChangeText={setEmergency}
@@ -161,10 +202,10 @@ function Section({ label, children }) {
   );
 }
 
-function Field({ icon, label, value, onChangeText, placeholder, isLast, multiline, ...rest }) {
+function Field({ icon, label, value, onChangeText, placeholder, isLast, multiline, editable = true, ...rest }) {
   const [focused, setFocused] = useState(false);
   return (
-    <View style={[styles.field, !isLast && styles.fieldDivider, focused && styles.fieldFocused]}>
+    <View style={[styles.field, !isLast && styles.fieldDivider, focused && styles.fieldFocused, !editable && styles.fieldDisabled]}>
       <View style={styles.fieldIcon}>{icon}</View>
       <View style={{ flex: 1 }}>
         <Text style={styles.fieldLabel}>{label}</Text>
@@ -178,6 +219,7 @@ function Field({ icon, label, value, onChangeText, placeholder, isLast, multilin
           onBlur={() => setFocused(false)}
           multiline={multiline}
           textAlignVertical={multiline ? 'top' : 'center'}
+          editable={editable}
           {...rest}
         />
       </View>
@@ -196,16 +238,16 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#fff', fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 
-  /* Avatar */
   avatarSection: { alignItems: 'center', marginVertical: 24 },
   avatar: {
     width: 84, height: 84, borderRadius: 42,
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
+  avatarImg: { width: 84, height: 84, borderRadius: 42 },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: fontWeight.black },
   avatarEdit: {
-    position: 'absolute', bottom: 26, right: '33%',
+    position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
@@ -213,7 +255,6 @@ const styles = StyleSheet.create({
   },
   avatarHint: { marginTop: 8, fontSize: fontSize.xs, color: colors.textLight },
 
-  /* Section */
   section: { marginBottom: 20 },
   sectionLabel: {
     fontSize: fontSize.xs, fontWeight: fontWeight.bold,
@@ -227,13 +268,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
 
-  /* Field */
   field: {
     flexDirection: 'row', alignItems: 'flex-start',
     paddingHorizontal: 16, paddingVertical: 12, gap: 12,
   },
   fieldDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
   fieldFocused: { backgroundColor: colors.primaryPale + '30' },
+  fieldDisabled: { opacity: 0.5 },
   fieldIcon: { marginTop: 2 },
   fieldLabel: {
     fontSize: 11, fontWeight: fontWeight.bold,
@@ -245,10 +286,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium, paddingVertical: 0,
   },
   fieldInputMulti: { minHeight: 60, lineHeight: 22 },
-  atSign: {
-    fontSize: 17, fontWeight: fontWeight.black,
-    color: colors.primary, lineHeight: 22,
-  },
   hint: {
     fontSize: fontSize.xs, color: colors.textLight,
     paddingHorizontal: 16, paddingBottom: 12, lineHeight: 18,

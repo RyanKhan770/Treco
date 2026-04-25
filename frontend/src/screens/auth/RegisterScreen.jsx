@@ -1,18 +1,27 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ScrollView, StatusBar, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, StatusBar, Alert,
+  KeyboardAvoidingView, Platform, Dimensions,
 } from 'react-native';
+import { UserIcon, Mail01Icon, CallIcon, LockIcon, Shield01Icon, ArrowRight01Icon, ArrowLeft02Icon } from '@hugeicons/core-free-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../constants/colors';
+import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import MountainScene from '../../assets/svg/MountainScene';
+import { Input, Button, PressableScale, SlideUp, FadeIn } from '../../components/ui';
+
+const { width: W } = Dimensions.get('window');
 
 const RegisterScreen = ({ navigation }) => {
   const { login } = useAuth();
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({
+    fullName: '', email: '', phone: '', password: '', confirmPassword: '',
+  });
   const [loading, setLoading] = useState(false);
-
-  const update = (field, val) => setForm((p) => ({ ...p, [field]: val }));
+  const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleRegister = async () => {
     const { fullName, email, phone, password, confirmPassword } = form;
@@ -28,7 +37,7 @@ const RegisterScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const res = await authAPI.register({
-        fullName: fullName.trim(),
+        name: fullName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         password,
@@ -42,98 +51,135 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-      <ScrollView style={styles.container} bounces={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Account</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.primaryDark }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={colors.gradAlpine} style={StyleSheet.absoluteFill} />
+      <View style={styles.hero}>
+        <MountainScene width={W} height={200} variant="mist" />
+        <LinearGradient
+          colors={['rgba(15,44,32,0)', colors.primaryDark]}
+          style={styles.heroFade}
+        />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.topBar}>
+          <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn} scaleTo={0.9}>
+            <HugeiconsIcon icon={ArrowLeft02Icon} size={22} color="#fff" strokeWidth={2.25} />
+          </PressableScale>
         </View>
 
-        {/* Wave bottom of header */}
-        <View style={styles.wave} />
+        <FadeIn delay={80} style={styles.brand}>
+          <Text style={styles.header}>Join Treco</Text>
+          <Text style={styles.sub}>Create your account and start exploring</Text>
+        </FadeIn>
 
-        {/* Form */}
-        <View style={styles.formContainer}>
-          <Field label="Full Name" placeholder="Enter your full name" value={form.fullName} onChangeText={(v) => update('fullName', v)} />
-          <Field label="Email" placeholder="Enter your email" value={form.email} onChangeText={(v) => update('email', v)} keyboardType="email-address" autoCapitalize="none" />
-          <Field label="Phone Number" placeholder="+977" value={form.phone} onChangeText={(v) => update('phone', v)} keyboardType="phone-pad" />
-          <Field label="Password" placeholder="Create a password" value={form.password} onChangeText={(v) => update('password', v)} secureTextEntry />
-          <Field label="Confirm Password" placeholder="Confirm your password" value={form.confirmPassword} onChangeText={(v) => update('confirmPassword', v)} secureTextEntry />
+        <SlideUp delay={220} distance={40} style={styles.cardWrap}>
+          <View style={styles.card}>
+            <Input
+              label="Full name"
+              icon={UserIcon}
+              placeholder="Ryan Khan"
+              value={form.fullName}
+              onChangeText={(v) => update('fullName', v)}
+            />
+            <Input
+              label="Email"
+              icon={Mail01Icon}
+              placeholder="you@example.com"
+              value={form.email}
+              onChangeText={(v) => update('email', v)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Input
+              label="Phone"
+              icon={CallIcon}
+              placeholder="+977 ..."
+              value={form.phone}
+              onChangeText={(v) => update('phone', v)}
+              keyboardType="phone-pad"
+            />
+            <Input
+              label="Password"
+              icon={LockIcon}
+              placeholder="At least 6 characters"
+              value={form.password}
+              onChangeText={(v) => update('password', v)}
+              secureTextEntry
+            />
+            <Input
+              label="Confirm password"
+              icon={Shield01Icon}
+              placeholder="Repeat your password"
+              value={form.confirmPassword}
+              onChangeText={(v) => update('confirmPassword', v)}
+              secureTextEntry
+            />
 
-          <TouchableOpacity
-            style={[styles.createBtn, loading && { opacity: 0.7 }]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.createBtnText}>Create Account</Text>}
-          </TouchableOpacity>
+            <Button
+              label="Create Account"
+              iconRight={ArrowRight01Icon}
+              onPress={handleRegister}
+              loading={loading}
+              size="lg"
+              style={{ marginTop: spacing.sm }}
+            />
 
-          <View style={styles.loginRow}>
-            <Text style={styles.loginSub}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.loginLink}>Sign In</Text>
-            </TouchableOpacity>
+            <View style={styles.signInRow}>
+              <Text style={styles.signInSub}>Already have an account? </Text>
+              <PressableScale onPress={() => navigation.navigate('Login')} hitSlop={8}>
+                <Text style={styles.signInLink}>Sign in</Text>
+              </PressableScale>
+            </View>
           </View>
-        </View>
+        </SlideUp>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
-const Field = ({ label, ...props }) => (
-  <View style={{ marginBottom: 16 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} placeholderTextColor={colors.textMuted} {...props} />
-  </View>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.primary },
+  hero: { position: 'absolute', top: 0, left: 0, right: 0, height: 240 },
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80 },
+  topBar: {
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+  },
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  brand: { alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.lg },
   header: {
-    paddingTop: 56,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+    color: '#fff', fontSize: fontSize.display, fontWeight: fontWeight.black, letterSpacing: -1,
   },
-  backBtn: { marginBottom: 16 },
-  backArrow: { fontSize: 24, color: colors.white },
-  headerTitle: { fontSize: 30, fontWeight: '700', color: colors.white, textAlign: 'center' },
-  wave: {
-    backgroundColor: colors.white,
-    height: 32,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    marginTop: -8,
+  sub: { color: 'rgba(255,255,255,0.78)', fontSize: fontSize.md, marginTop: 4 },
+  cardWrap: { paddingHorizontal: spacing.md, flexGrow: 1 },
+  card: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    ...shadows.xl,
+    minHeight: 500,
   },
-  formContainer: {
-    backgroundColor: colors.white,
-    paddingHorizontal: 24,
-    paddingBottom: 48,
+  signInRow: {
+    flexDirection: 'row', justifyContent: 'center',
+    marginTop: spacing.lg,
   },
-  label: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginBottom: 6 },
-  input: {
-    backgroundColor: colors.inputBg,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  createBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: 50,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  createBtnText: { color: colors.white, fontSize: 16, fontWeight: '600' },
-  loginRow: { flexDirection: 'row', justifyContent: 'center' },
-  loginSub: { color: colors.textSecondary, fontSize: 14 },
-  loginLink: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  signInSub: { color: colors.textSecondary, fontSize: fontSize.sm },
+  signInLink: { color: colors.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 });
 
 export default RegisterScreen;

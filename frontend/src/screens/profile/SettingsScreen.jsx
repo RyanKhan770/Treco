@@ -1,22 +1,41 @@
-import React, { useState } from 'react';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Switch, StatusBar, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  ChevronLeft, ChevronRight, User, Lock, Shield, Bell, MapPin, Download,
-  HelpCircle, MessageSquareWarning, LogOut,
-} from 'lucide-react-native';
+import { ArrowLeft02Icon, ArrowRight01Icon, UserIcon, LockIcon, Shield01Icon, Notification01Icon, MapPinIcon, Download01Icon, HelpCircleIcon, Message01Icon, Logout01Icon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { Card, PressableScale, FadeIn, Stagger } from '../../components/ui';
 import ScreenHeader from '../../components/ui/ScreenHeader';
+import { settingsAPI } from '../../services/api';
 
 const SettingsScreen = ({ navigation }) => {
   const { logout } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [location, setLocation] = useState(true);
+
+  // Load persisted settings from DB
+  useEffect(() => {
+    settingsAPI.get()
+      .then(r => {
+        if (r.data) {
+          setNotifications(r.data.notifications_enabled ?? true);
+          setLocation(r.data.location_enabled ?? true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const updateSetting = (key, val) => {
+    const updates = { notifications_enabled: notifications, location_enabled: location, [key]: val };
+    settingsAPI.update(updates).catch(() => {});
+  };
+
+  const handleNotifToggle = (val) => { setNotifications(val); updateSetting('notifications_enabled', val); };
+  const handleLocToggle = (val) => { setLocation(val); updateSetting('location_enabled', val); };
 
   const handleLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
@@ -37,24 +56,24 @@ const SettingsScreen = ({ navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xxl }}>
         <Stagger initialDelay={120} step={40} distance={14}>
           <Section label="Account">
-            <MenuItem Icon={User} label="Edit profile" color="#40916C" onPress={() => navigation.navigate('EditProfile')} />
-            <MenuItem Icon={Lock} label="Change password" color="#457B9D" onPress={() => navigation.navigate('ChangePassword')} />
-            <MenuItem Icon={Shield} label="Privacy" color="#8B5CF6" onPress={() => navigation.navigate('Privacy')} isLast />
+            <MenuItem Icon={UserIcon} label="Edit profile" color="#40916C" onPress={() => navigation.navigate('EditProfile')} />
+            <MenuItem Icon={LockIcon} label="Change password" color="#457B9D" onPress={() => navigation.navigate('ChangePassword')} />
+            <MenuItem Icon={Shield01Icon} label="Privacy" color="#8B5CF6" onPress={() => navigation.navigate('Privacy')} isLast />
           </Section>
 
           <Section label="Preferences">
-            <ToggleItem Icon={Bell} label="Notifications" color="#E76F51" value={notifications} onChange={setNotifications} />
-            <ToggleItem Icon={MapPin} label="Location services" color="#52B788" value={location} onChange={setLocation} />
-            <MenuItem Icon={Download} label="Offline maps" color="#6B4423" onPress={() => navigation.navigate('OfflineMaps')} isLast />
+            <ToggleItem Icon={Notification01Icon} label="Notifications" color="#E76F51" value={notifications} onChange={handleNotifToggle} />
+            <ToggleItem Icon={MapPinIcon} label="Location services" color="#52B788" value={location} onChange={handleLocToggle} />
+            <MenuItem Icon={Download01Icon} label="Offline maps" color="#6B4423" onPress={() => navigation.navigate('OfflineMaps')} isLast />
           </Section>
 
           <Section label="Support">
-            <MenuItem Icon={HelpCircle} label="Help center" color="#40916C" onPress={() => navigation.navigate('HelpCenter')} />
-            <MenuItem Icon={MessageSquareWarning} label="Report a problem" color="#E76F51" onPress={() => navigation.navigate('ReportIssue')} isLast />
+            <MenuItem Icon={HelpCircleIcon} label="Help center" color="#40916C" onPress={() => navigation.navigate('HelpCenter')} />
+            <MenuItem Icon={Message01Icon} label="Report a problem" color="#E76F51" onPress={() => navigation.navigate('ReportIssue')} isLast />
           </Section>
 
           <PressableScale style={styles.logoutBtn} onPress={handleLogout} scaleTo={0.98}>
-            <LogOut size={18} color={colors.danger} strokeWidth={2.25} />
+            <HugeiconsIcon icon={Logout01Icon} size={18} color={colors.danger} strokeWidth={2.25} />
             <Text style={styles.logoutText}>Log out</Text>
           </PressableScale>
 
@@ -75,17 +94,17 @@ const Section = ({ label, children }) => (
 const MenuItem = ({ Icon, label, color, onPress, isLast }) => (
   <PressableScale onPress={onPress} style={[styles.row, !isLast && styles.rowDivider]} scaleTo={0.99}>
     <View style={[styles.rowIcon, { backgroundColor: `${color}22` }]}>
-      <Icon size={16} color={color} strokeWidth={2.25} />
+      <HugeiconsIcon icon={Icon} size={16} color={color} strokeWidth={2.25} />
     </View>
     <Text style={styles.rowLabel}>{label}</Text>
-    <ChevronRight size={18} color={colors.textLight} strokeWidth={2.25} />
+    <HugeiconsIcon icon={ArrowRight01Icon} size={18} color={colors.textLight} strokeWidth={2.25} />
   </PressableScale>
 );
 
 const ToggleItem = ({ Icon, label, color, value, onChange, isLast }) => (
   <View style={[styles.row, !isLast && styles.rowDivider]}>
     <View style={[styles.rowIcon, { backgroundColor: `${color}22` }]}>
-      <Icon size={16} color={color} strokeWidth={2.25} />
+      <HugeiconsIcon icon={Icon} size={16} color={color} strokeWidth={2.25} />
     </View>
     <Text style={styles.rowLabel}>{label}</Text>
     <Switch

@@ -18,6 +18,9 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
     req.user = result.rows[0];
+    if (req.user.role === 'banned') {
+      return res.status(403).json({ message: 'Your account has been suspended' });
+    }
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Token is not valid' });

@@ -11,6 +11,8 @@ import OrganizerRequestsPage from './pages/OrganizerRequestsPage';
 import ReportsPage           from './pages/ReportsPage';
 import VerificationsPage     from './pages/VerificationsPage';
 
+import SOSAlertsPage         from './pages/SOSAlertsPage';
+
 function ProtectedLayout() {
   const { admin, loading } = useAuth();
 
@@ -36,6 +38,7 @@ function ProtectedLayout() {
           <Route path="/organizer-requests"  element={<OrganizerRequestsPage />} />
           <Route path="/reports"             element={<ReportsPage />} />
           <Route path="/verifications"       element={<VerificationsPage />} />
+          <Route path="/sos-alerts"          element={<SOSAlertsPage />} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -3,23 +3,58 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   StatusBar, ScrollView, Platform, Dimensions, Animated,
 } from 'react-native';
-import {
-  ArrowLeft, Layers, Plus, Minus, Locate, RotateCcw,
-  Pause, Play, AlertTriangle, Check,
-} from 'lucide-react-native';
-
-const { width: SCREEN_W } = Dimensions.get('window');
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { PlusSignIcon, PauseIcon, PlayIcon, Tick01Icon, ArrowLeft02Icon, Layers01Icon, MinusSignIcon, ReloadIcon, Gps01Icon, Alert01Icon } from '@hugeicons/core-free-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import MapboxMock from '../../utils/MapboxMock';
-
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
-const MapboxGL = isExpoGo ? MapboxMock : require('@rnmapbox/maps').default;
 import { colors } from '../../constants/colors';
 import { getTrailById, getTrailByName, getDefaultTrail } from '../../constants/kathmandu_trails';
 
-// ── Constants ──────────────────────────────────────────────────────────
+const { width: SCREEN_W } = Dimensions.get('window');
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+const MapboxGL = isExpoGo ? MapboxMock : require('@rnmapbox/maps').default;
+
+function normalizeTrail(data) {
+  if (!data) return null;
+  const coords = Array.isArray(data.coordinates) ? data.coordinates : [];
+  const startC  = data.startCoord || data.start_coord || coords[0] || null;
+  const center   = data.center
+    || (coords.length ? coords[Math.floor(coords.length / 2)] : null)
+    || startC || [85.3, 27.7];
+  const wps = (Array.isArray(data.waypoints) ? data.waypoints : [])
+    .map((w, i) => ({
+      name:      w.name      || `Checkpoint ${i + 1}`,
+      coord:     w.coord     || (Array.isArray(w.coordinates) ? w.coordinates : null),
+      elevation: w.elevation || '',
+      status:    'upcoming',
+    }))
+    .filter(w => w.coord);
+  return {
+    id:            data.id,
+    name:          data.name          || 'Trail',
+    region:        data.region        || '',
+    difficulty:    data.difficulty    || 'Moderate',
+    distance:      data.distance      || 'N/A',
+    duration:      data.duration      || 'N/A',
+    maxElevation:  data.maxElevation  ?? data.max_elevation  ?? 0,
+    elevationGain: data.elevationGain || data.elevation_gain || 'N/A',
+    description:   data.description   || '',
+    bestSeason:    data.bestSeason    || data.best_season    || 'N/A',
+    permits:       Array.isArray(data.permits) ? data.permits : [],
+    startCoord:    startC,
+    center,
+    zoom:          data.zoom          || 11,
+    coordinates:   coords,
+    waypoints:     wps,
+    pois:          Array.isArray(data.pois)             ? data.pois             : [],
+    elevationProfile: Array.isArray(data.elevationProfile)
+      ? data.elevationProfile
+      : Array.isArray(data.elevation_profile) ? data.elevation_profile : [],
+  };
+}
+
 const ADVANCE_RADIUS_M = 80;
 const FOLLOW_ZOOM      = 15.5;
 
@@ -34,7 +69,6 @@ const STATUS_COLOR = {
   upcoming:  colors.border,
 };
 
-// ── Haversine distance (metres) ────────────────────────────────────────
 function haversineM([lng1, lat1], [lng2, lat2]) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -47,7 +81,6 @@ function haversineM([lng1, lat1], [lng2, lat2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Split trail into completed / upcoming at current waypoint ─────────
 function splitTrailSegments(coordinates, waypoints) {
   const currentIdx = waypoints.findIndex((w) => w.status === 'current');
   if (currentIdx === -1) return { completed: coordinates, upcoming: [] };
@@ -67,7 +100,6 @@ function splitTrailSegments(coordinates, waypoints) {
   };
 }
 
-// ── Pulsing dot (tracking badge) ──────────────────────────────────────
 function PulsingDot({ color = colors.success, size = 8 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -91,15 +123,31 @@ function PulsingDot({ color = colors.success, size = 8 }) {
   );
 }
 
-// ── Main Screen ───────────────────────────────────────────────────────
 export default function MapViewScreen({ route, navigation }) {
   const insets    = useSafeAreaInsets();
   const cameraRef = useRef(null);
   const followRef = useRef(false);
   const zoomLvl   = useRef(null);
 
-  const { trailId, trailName, tracking = false } = route.params || {};
-  const baseTrail = getTrailById(trailId) || getTrailByName(trailName) || getDefaultTrail();
+  const { trailId, trailName, trailData, tracking = false } = route.params || {};
+
+  // Resolve trail: prioritise trailData.coordinates (real DB geojson_path) so the
+  // map always renders the actual GPS route instead of falling back to stub constants.
+  const rawTrail = (() => {
+    if (trailData?.coordinates?.length >= 2) return normalizeTrail(trailData);
+    if (trailId)   { const l = getTrailById(trailId);          if (l) return l; }
+    if (trailName) { const l = getTrailByName(trailName);      if (l) return l; }
+    if (trailData) return normalizeTrail(trailData);
+    return getDefaultTrail();
+  })();
+
+  // Always start fresh: first waypoint = current, rest = upcoming
+  const baseTrail = {
+    ...rawTrail,
+    waypoints: (rawTrail.waypoints || []).map((w, i) => ({
+      ...w, status: i === 0 ? 'current' : 'upcoming',
+    })),
+  };
 
   // Live waypoints state (mutated during tracking)
   const [waypoints,      setWaypoints]      = useState(() => baseTrail.waypoints.map((w) => ({ ...w })));
@@ -111,19 +159,29 @@ export default function MapViewScreen({ route, navigation }) {
 
   const trail = useMemo(() => ({ ...baseTrail, waypoints }), [baseTrail, waypoints]);
 
-  // ── Animated scales for manual-check animation (one per waypoint) ──
+  // Bounding box covering all trail coordinates — used for camera fitBounds
+  const trailBounds = useMemo(() => {
+    const coords = trail.coordinates;
+    if (!coords || coords.length < 2) return null;
+    const lngs = coords.map(c => c[0]);
+    const lats  = coords.map(c => c[1]);
+    const pad   = coords.length > 8 ? 0.025 : 0.006;
+    return {
+      ne: [Math.max(...lngs) + pad, Math.max(...lats) + pad],
+      sw: [Math.min(...lngs) - pad, Math.min(...lats) - pad],
+    };
+  }, [trail.coordinates]);
+
   const checkScales = useRef(
     baseTrail.waypoints.map((w) =>
       new Animated.Value(w.status === 'completed' ? 1 : 0),
     ),
   ).current;
-
-  // ── Elapsed timer ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!tracking) return;
+    if (!trackingActive) return;
     const id = setInterval(() => setElapsedSecs((s) => s + 1), 1000);
     return () => clearInterval(id);
-  }, [tracking]);
+  }, [trackingActive]);
 
   const elapsedLabel = useMemo(() => {
     const h = Math.floor(elapsedSecs / 3600);
@@ -133,10 +191,7 @@ export default function MapViewScreen({ route, navigation }) {
       ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
       : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }, [elapsedSecs]);
-
-  // ── GPS watch (tracking mode only — for auto-advance) ─────────────
   useEffect(() => {
-    if (!tracking) return;
     let subscription;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -158,12 +213,9 @@ export default function MapViewScreen({ route, navigation }) {
           }
         },
       );
-      followRef.current = true;
     })();
     return () => subscription?.remove();
-  }, [tracking]);
-
-  // ── Auto-advance waypoints ─────────────────────────────────────────
+  }, []);
   function advanceWaypoints(wps, userCoord) {
     const currentIdx = wps.findIndex((w) => w.status === 'current');
     if (currentIdx === -1 || currentIdx + 1 >= wps.length) return wps;
@@ -177,8 +229,6 @@ export default function MapViewScreen({ route, navigation }) {
     }
     return wps;
   }
-
-  // ── Manual waypoint checkpoint ─────────────────────────────────────
   const manualMark = (index) => {
     setWaypoints((prev) => {
       const wp = prev[index];
@@ -221,8 +271,6 @@ export default function MapViewScreen({ route, navigation }) {
       friction: 8,
     }).start();
   };
-
-  // ── Trail segment GeoJSON ──────────────────────────────────────────
   const { completed, upcoming } = useMemo(
     () => splitTrailSegments(trail.coordinates, trail.waypoints),
     [trail.coordinates, trail.waypoints],
@@ -235,23 +283,22 @@ export default function MapViewScreen({ route, navigation }) {
   const upcomingGeoJSON = useMemo(() => ({
     type: 'Feature', geometry: { type: 'LineString', coordinates: upcoming },
   }), [upcoming]);
-
-  // ── Progress ───────────────────────────────────────────────────────
-  const progress = Math.round(
-    (trail.waypoints.filter((w) => w.status === 'completed').length / trail.waypoints.length) * 100,
-  );
-
-  // ── Camera controls ────────────────────────────────────────────────
+  const progress = trail.waypoints.length > 0
+    ? Math.round((trail.waypoints.filter(w => w.status === 'completed').length / trail.waypoints.length) * 100)
+    : 0;
   const getZoom = () => zoomLvl.current ?? trail.zoom;
 
   const recenter = () => {
     followRef.current = false;
-    cameraRef.current?.setCamera({
-      centerCoordinate: trail.center,
-      zoomLevel:        trail.zoom,
-      animationDuration: 600,
-    });
-    zoomLvl.current = trail.zoom;
+    if (trailBounds) {
+      cameraRef.current?.fitBounds(trailBounds.sw, trailBounds.ne, [80, 60, 220, 60], 700);
+    } else {
+      cameraRef.current?.setCamera({
+        centerCoordinate: trail.center || [85.3, 27.7],
+        zoomLevel: trail.zoom || 12,
+        animationDuration: 600,
+      });
+    }
   };
 
   const centerOnMe = () => {
@@ -275,8 +322,6 @@ export default function MapViewScreen({ route, navigation }) {
     zoomLvl.current = Math.max(getZoom() - 1, 5);
     cameraRef.current?.setCamera({ zoomLevel: zoomLvl.current, animationDuration: 220 });
   };
-
-  // ── Pause / resume ─────────────────────────────────────────────────
   const toggleTracking = () => {
     setTrackingActive((prev) => {
       if (!prev && userLocation) {
@@ -292,8 +337,27 @@ export default function MapViewScreen({ route, navigation }) {
       return !prev;
     });
   };
+  const [trackingStarted, setTrackingStarted] = useState(tracking);
 
-  // ── SOS ───────────────────────────────────────────────────────────
+  const handleStartTrek = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Location access is required for trek tracking.');
+      return;
+    }
+    // Reset waypoints to fresh state from trail start
+    setWaypoints(baseTrail.waypoints.map((w, i) => ({ ...w, status: i === 0 ? 'current' : 'upcoming' })));
+    setElapsedSecs(0);
+    setTrackingStarted(true);
+    setTrackingActive(true);
+    followRef.current = true;
+    // Pan camera to trail start so user sees route from beginning
+    const trailStart = trail.coordinates?.[0] || trail.center;
+    if (trailStart) {
+      cameraRef.current?.setCamera({ centerCoordinate: trailStart, zoomLevel: FOLLOW_ZOOM, animationDuration: 1000 });
+    }
+    // GPS watch already running from useEffect — no duplicate needed
+  };
   const handleSOS = () => {
     Alert.alert(
       'Send SOS?',
@@ -315,25 +379,31 @@ export default function MapViewScreen({ route, navigation }) {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-
-      {/* ── Full-screen Mapbox map ─────────────────────────────────── */}
       <MapboxGL.MapView
         style={StyleSheet.absoluteFill}
         styleURL={MAP_STYLES[styleKey]}
         compassEnabled={false}
+        scaleBarEnabled={false}
         attributionPosition={{ bottom: sheetExpanded ? 348 : 200, left: 8 }}
         logoPosition={{ bottom: sheetExpanded ? 348 : 200, left: 80 }}
         onTouchStart={() => { followRef.current = false; }}
+        terrain={{ sourceID: 'mapbox-dem', exaggeration: 1.3 }}
       >
+        <MapboxGL.RasterDemSource
+          id="mapbox-dem"
+          url="mapbox://mapbox.terrain-rgb"
+          tileSize={512}
+          maxZoomLevel={14}
+        />
         <MapboxGL.Camera
           ref={cameraRef}
-          zoomLevel={trail.zoom}
-          centerCoordinate={trail.center}
+          {...(trailBounds
+            ? { bounds: { ...trailBounds, paddingTop: 80, paddingRight: 60, paddingBottom: 220, paddingLeft: 60 } }
+            : { zoomLevel: trail.zoom || 12, centerCoordinate: trail.center || [85.3, 27.7] }
+          )}
           animationMode="flyTo"
-          animationDuration={800}
+          animationDuration={1000}
         />
-
-        {/* Native user location dot (blue heading indicator) */}
         <MapboxGL.UserLocation
           visible={true}
           showsUserHeadingIndicator={true}
@@ -342,49 +412,30 @@ export default function MapViewScreen({ route, navigation }) {
             setUserLocation(coord);
           }}
         />
+        {!trackingStarted && trail.coordinates?.length >= 2 && (
+          <MapboxGL.ShapeSource
+            id="fullTrailSource"
+            shape={{ type: 'Feature', geometry: { type: 'LineString', coordinates: trail.coordinates } }}
+          >
+            <MapboxGL.LineLayer id="fullTrailGlow" style={{ lineColor: colors.primary, lineWidth: 14, lineOpacity: 0.25, lineCap: 'round' }} />
+            <MapboxGL.LineLayer id="fullTrailHalo" style={{ lineColor: '#fff', lineWidth: 7, lineOpacity: 0.8, lineCap: 'round' }} />
+            <MapboxGL.LineLayer id="fullTrailBase" style={{ lineColor: colors.primary, lineWidth: 5, lineOpacity: 1, lineCap: 'round', lineJoin: 'round' }} />
+            <MapboxGL.LineLayer id="fullTrailDash" style={{ lineColor: '#fff', lineWidth: 2, lineDasharray: [2, 2], lineCap: 'round', lineJoin: 'round' }} />
+          </MapboxGL.ShapeSource>
+        )}
 
-        {/* Completed trail segment — solid */}
-        {completed.length >= 2 && (
+        {trackingStarted && completed.length >= 2 && (
           <MapboxGL.ShapeSource id="completedSource" shape={completedGeoJSON}>
-            <MapboxGL.LineLayer
-              id="completedHalo"
-              style={{ lineColor: '#fff', lineWidth: 8, lineOpacity: 0.45 }}
-            />
-            <MapboxGL.LineLayer
-              id="completedLine"
-              style={{
-                lineColor: tracking ? colors.accent : colors.primary,
-                lineWidth:  4,
-                lineOpacity: 0.95,
-                lineCap:    'round',
-                lineJoin:   'round',
-              }}
-            />
+            <MapboxGL.LineLayer id="completedHalo" style={{ lineColor: '#fff', lineWidth: 8, lineOpacity: 0.45 }} />
+            <MapboxGL.LineLayer id="completedLine" style={{ lineColor: colors.accent, lineWidth: 4, lineOpacity: 0.95, lineCap: 'round', lineJoin: 'round' }} />
           </MapboxGL.ShapeSource>
         )}
-
-        {/* Upcoming trail segment — dashed */}
-        {upcoming.length >= 2 && (
+        {trackingStarted && upcoming.length >= 2 && (
           <MapboxGL.ShapeSource id="upcomingSource" shape={upcomingGeoJSON}>
-            <MapboxGL.LineLayer
-              id="upcomingHalo"
-              style={{ lineColor: '#fff', lineWidth: 6, lineOpacity: 0.2 }}
-            />
-            <MapboxGL.LineLayer
-              id="upcomingLine"
-              style={{
-                lineColor:    colors.accentSoft,
-                lineWidth:    3,
-                lineOpacity:  0.75,
-                lineCap:      'round',
-                lineJoin:     'round',
-                lineDasharray: [2, 3],
-              }}
-            />
+            <MapboxGL.LineLayer id="upcomingHalo" style={{ lineColor: '#fff', lineWidth: 6, lineOpacity: 0.2 }} />
+            <MapboxGL.LineLayer id="upcomingLine" style={{ lineColor: colors.accentSoft, lineWidth: 3, lineOpacity: 0.75, lineCap: 'round', lineJoin: 'round', lineDasharray: [2, 3] }} />
           </MapboxGL.ShapeSource>
         )}
-
-        {/* POI markers */}
         {(trail.pois || []).map((poi, i) => (
           <MapboxGL.MarkerView
             key={`poi-${i}`}
@@ -397,8 +448,6 @@ export default function MapViewScreen({ route, navigation }) {
             </View>
           </MapboxGL.MarkerView>
         ))}
-
-        {/* Waypoint markers — tappable checkpoints */}
         {trail.waypoints.map((wp, i) => (
           <MapboxGL.MarkerView
             key={`wp-${i}`}
@@ -407,26 +456,26 @@ export default function MapViewScreen({ route, navigation }) {
             anchor={{ x: 0.5, y: 0.5 }}
           >
             <TouchableOpacity
-              activeOpacity={0.75}
+              activeOpacity={trackingStarted ? 0.75 : 1}
               style={styles.markerTouchArea}
-              onPress={() => manualMark(i)}
+              onPress={() => trackingStarted && manualMark(i)}
             >
               <View style={[
                 styles.markerOuter,
-                { borderColor: STATUS_COLOR[wp.status] },
-                wp.status === 'current' && styles.markerCurrent,
-                wp.status === 'completed' && styles.markerCompleted,
+                trackingStarted && { borderColor: STATUS_COLOR[wp.status] },
+                trackingStarted && wp.status === 'current' && styles.markerCurrent,
+                trackingStarted && wp.status === 'completed' && styles.markerCompleted,
               ]}>
-                {wp.status === 'completed' ? (
+                {trackingStarted && wp.status === 'completed' ? (
                   <Animated.View style={{ transform: [{ scale: checkScales[i] }] }}>
-                    <Check size={9} color="#fff" strokeWidth={3.5} />
+                    <HugeiconsIcon icon={Tick01Icon} size={9} color="#fff" strokeWidth={3.5} />
                   </Animated.View>
                 ) : (
-                  <View style={[styles.markerInner, { backgroundColor: STATUS_COLOR[wp.status] }]} />
+                  <View style={[styles.markerInner, { backgroundColor: trackingStarted ? STATUS_COLOR[wp.status] : colors.textLight }]} />
                 )}
               </View>
               <View style={styles.markerLabelWrap}>
-                <Text style={[styles.markerLabel, wp.status === 'completed' && { color: colors.success }]} numberOfLines={1}>
+                <Text style={[styles.markerLabel, trackingStarted && wp.status === 'completed' && { color: colors.success }]} numberOfLines={1}>
                   {wp.name}
                 </Text>
                 <Text style={styles.markerElev}>{wp.elevation}</Text>
@@ -435,16 +484,14 @@ export default function MapViewScreen({ route, navigation }) {
           </MapboxGL.MarkerView>
         ))}
       </MapboxGL.MapView>
-
-      {/* ── Floating header ───────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: headerTop }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.ctrlBtnSingle}>
-          <ArrowLeft size={20} color={colors.text} strokeWidth={2.25} />
+          <HugeiconsIcon icon={ArrowLeft02Icon} size={20} color={colors.text} strokeWidth={2.25} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>{trail.name}</Text>
-          {tracking ? (
+          {trackingStarted ? (
             <View style={styles.trackingBadge}>
               <PulsingDot color={trackingActive ? colors.success : colors.warning} size={7} />
               <Text style={[styles.trackingLabel, { color: trackingActive ? colors.primary : colors.warning }]}>
@@ -455,44 +502,32 @@ export default function MapViewScreen({ route, navigation }) {
             <Text style={styles.headerSub}>{trail.region}</Text>
           )}
         </View>
-
-        {/* Style toggle — same look as ExploreScreen layers button */}
         <TouchableOpacity
           style={[styles.ctrlBtnSingle, styleKey === 'Satellite' && styles.ctrlBtnActive]}
           onPress={() => setStyleKey((k) => k === 'Outdoors' ? 'Satellite' : 'Outdoors')}
         >
-          <Layers size={18} color={styleKey === 'Satellite' ? '#fff' : colors.text} strokeWidth={2} />
+          <HugeiconsIcon icon={Layers01Icon} size={18} color={styleKey === 'Satellite' ? '#fff' : colors.text} strokeWidth={2} />
         </TouchableOpacity>
       </View>
-
-      {/* ── Right-side controls (matches ExploreScreen pill style) ── */}
       <View style={[styles.mapControls, { top: headerTop + 56 + 12 }]}>
-
-        {/* Zoom group */}
         <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlFirst]} onPress={zoomIn}>
-          <Plus size={18} color={colors.text} strokeWidth={2.5} />
+          <HugeiconsIcon icon={PlusSignIcon} size={18} color={colors.text} strokeWidth={2.5} />
         </TouchableOpacity>
         <View style={styles.ctrlDivider} />
         <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlLast]} onPress={zoomOut}>
-          <Minus size={18} color={colors.text} strokeWidth={2.5} />
+          <HugeiconsIcon icon={MinusSignIcon} size={18} color={colors.text} strokeWidth={2.5} />
         </TouchableOpacity>
-
-        {/* Recenter to trail */}
         <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlFirst, styles.ctrlLast, styles.ctrlGap]} onPress={recenter}>
-          <RotateCcw size={17} color={colors.primary} strokeWidth={2.25} />
+          <HugeiconsIcon icon={ReloadIcon} size={17} color={colors.primary} strokeWidth={2.25} />
         </TouchableOpacity>
-
-        {/* Center on user */}
         <TouchableOpacity
           style={[styles.ctrlBtn, styles.ctrlFirst, styles.ctrlLast, styles.ctrlGap, !userLocation && styles.ctrlDisabled]}
           onPress={centerOnMe}
           disabled={!userLocation}
         >
-          <Locate size={18} color={userLocation ? colors.primary : colors.textLight} strokeWidth={2} />
+          <HugeiconsIcon icon={Gps01Icon} size={18} color={userLocation ? colors.primary : colors.textLight} strokeWidth={2} />
         </TouchableOpacity>
-
-        {/* Pause / resume — only in tracking mode */}
-        {tracking && (
+        {trackingStarted && (
           <TouchableOpacity
             style={[
               styles.ctrlBtn, styles.ctrlFirst, styles.ctrlLast, styles.ctrlGap,
@@ -501,25 +536,21 @@ export default function MapViewScreen({ route, navigation }) {
             onPress={toggleTracking}
           >
             {trackingActive
-              ? <Pause size={17} color={colors.warning} strokeWidth={2.25} />
-              : <Play  size={17} color={colors.success} strokeWidth={2.25} />
+              ? <HugeiconsIcon icon={PauseIcon} size={17} color={colors.warning} strokeWidth={2.25} />
+              : <HugeiconsIcon icon={PlayIcon}  size={17} color={colors.success} strokeWidth={2.25} />
             }
           </TouchableOpacity>
         )}
       </View>
-
-      {/* ── SOS button (tracking only) ─────────────────────────────── */}
-      {tracking && (
+      {trackingStarted && (
         <TouchableOpacity
           style={[styles.sosBtn, { bottom: sheetExpanded ? '70%' : 200 }]}
           onPress={handleSOS}
         >
-          <AlertTriangle size={14} color="#fff" strokeWidth={2.5} />
+          <HugeiconsIcon icon={Alert01Icon} size={14} color="#fff" strokeWidth={2.5} />
           <Text style={styles.sosBtnText}>SOS</Text>
         </TouchableOpacity>
       )}
-
-      {/* ── Bottom sheet ──────────────────────────────────────────── */}
       <View style={[
         styles.sheet,
         { paddingBottom: (insets.bottom || 0) + 8 },
@@ -532,25 +563,31 @@ export default function MapViewScreen({ route, navigation }) {
         >
           <View style={styles.handle} />
         </TouchableOpacity>
-
-        {/* Stats */}
         <View style={styles.statsRow}>
           <StatItem value={trail.distance}            label="Distance" />
           <StatItem value={`${trail.maxElevation}m`}  label="Max Alt." />
           <StatItem value={trail.elevationGain}        label="Gain" />
           <StatItem value={trail.duration}             label="Duration" />
         </View>
-
-        {/* Progress */}
-        <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>Trek Progress</Text>
-          <Text style={styles.progressPct}>{progress}%</Text>
-        </View>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
-
-        {/* Expanded section */}
+        {!trackingStarted ? (
+          <>
+            <TouchableOpacity style={styles.startTrekBtn} onPress={handleStartTrek} activeOpacity={0.85}>
+              <HugeiconsIcon icon={PlayIcon} size={16} color="#fff" fill="#fff" strokeWidth={0} />
+              <Text style={styles.startTrekText}>Start Trek</Text>
+            </TouchableOpacity>
+            <Text style={styles.preTrackHint}>Press Start Trek to begin GPS tracking and progress</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>Trek Progress</Text>
+              <Text style={styles.progressPct}>{progress}%</Text>
+            </View>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+            </View>
+          </>
+        )}
         {sheetExpanded && (
           <ScrollView style={styles.waypointScroll} showsVerticalScrollIndicator={false}>
 
@@ -585,14 +622,14 @@ export default function MapViewScreen({ route, navigation }) {
                 ]}>
                   {wp.status === 'completed' && (
                     <Animated.View style={{ transform: [{ scale: checkScales[i] }] }}>
-                      <Check size={10} color="#fff" strokeWidth={3.5} />
+                      <HugeiconsIcon icon={Tick01Icon} size={10} color="#fff" strokeWidth={3.5} />
                     </Animated.View>
                   )}
                 </View>
                 <View style={styles.wpInfo}>
                   <Text style={[styles.wpName, wp.status === 'current' && styles.wpNameCurrent, wp.status === 'completed' && { color: colors.success }]}>
                     {wp.name}
-                    {wp.status === 'current' && (
+                    {trackingStarted && wp.status === 'current' && (
                       <Text style={styles.youAreHere}> ← you are here</Text>
                     )}
                   </Text>
@@ -600,9 +637,9 @@ export default function MapViewScreen({ route, navigation }) {
                 </View>
                 {wp.status === 'completed' ? (
                   <View style={styles.wpCheckBadge}>
-                    <Check size={12} color={colors.success} strokeWidth={3} />
+                    <HugeiconsIcon icon={Tick01Icon} size={12} color={colors.success} strokeWidth={3} />
                   </View>
-                ) : (
+                ) : trackingStarted ? (
                   <TouchableOpacity
                     style={styles.wpMarkBtn}
                     onPress={() => manualMark(i)}
@@ -610,7 +647,7 @@ export default function MapViewScreen({ route, navigation }) {
                   >
                     <Text style={styles.wpMarkBtnText}>Mark</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
             ))}
 
@@ -636,13 +673,11 @@ export default function MapViewScreen({ route, navigation }) {
   );
 }
 
-// ── POI emoji ─────────────────────────────────────────────────────────
 const POI_EMOJI = {
   lodge: '🏠', water: '💧', viewpoint: '🔭',
   junction: '🔀', rescue: '🆘', campsite: '⛺',
 };
 
-// ── Elevation Profile ─────────────────────────────────────────────────
 function ElevationProfile({ profile }) {
   const GRAPH_W = SCREEN_W - 64;
   const GRAPH_H = 80;
@@ -732,11 +767,8 @@ const MetaRow = ({ label, value }) => (
   </View>
 );
 
-// ── Styles ────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-
-  // ── Header (matches app-wide ScreenHeader style) ──
   header: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
@@ -753,8 +785,6 @@ const styles = StyleSheet.create({
 
   trackingBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   trackingLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
-
-  // ── Map control buttons (exactly matches ExploreScreen style) ──
   mapControls: {
     position: 'absolute', right: 12, zIndex: 20,
     ...Platform.select({
@@ -786,8 +816,6 @@ const styles = StyleSheet.create({
   ctrlDisabled: { opacity: 0.4 },
   ctrlPause:  { backgroundColor: '#FFF8E8' },
   ctrlResume: { backgroundColor: '#F0FAF4' },
-
-  // ── SOS ──
   sosBtn: {
     position: 'absolute', left: 16,
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -799,8 +827,6 @@ const styles = StyleSheet.create({
     }),
   },
   sosBtnText: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 },
-
-  // ── Waypoint markers ──
   markerTouchArea: { alignItems: 'center' },
   markerOuter: {
     width: 18, height: 18, borderRadius: 9,
@@ -824,12 +850,8 @@ const styles = StyleSheet.create({
   },
   markerLabel: { fontSize: 9, fontWeight: '600', color: colors.text, maxWidth: 80 },
   markerElev:  { fontSize: 8, color: colors.textSecondary },
-
-  // ── POI markers ──
   poiPin:  { alignItems: 'center' },
   poiEmoji: { fontSize: 16, lineHeight: 20 },
-
-  // ── Bottom sheet ──
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: colors.white,
@@ -855,6 +877,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 3,
   },
 
+  preTrackHint: {
+    fontSize: 11, color: colors.textLight, textAlign: 'center',
+    marginBottom: 12, fontStyle: 'italic',
+  },
   progressRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8,
   },
@@ -935,4 +961,15 @@ const styles = StyleSheet.create({
   poiChipText:  { fontSize: 9, color: colors.text, fontWeight: '600', textAlign: 'center', lineHeight: 13 },
 
   osmAttr: { fontSize: 10, textAlign: 'center', marginTop: 8, opacity: 0.45, fontStyle: 'italic', color: colors.textLight },
+
+  startTrekBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.primary, borderRadius: 14,
+    paddingVertical: 14, marginBottom: 14,
+    ...Platform.select({
+      ios:     { shadowColor: colors.primary, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 5 },
+    }),
+  },
+  startTrekText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
 });

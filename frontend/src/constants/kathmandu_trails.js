@@ -1,22 +1,28 @@
-// Real trekking / hiking trails across Nepal
-// Coordinates are [longitude, latitude] — Mapbox GeoJSON order
-// Sources: OpenStreetMap (© OSM contributors, ODbL), Nepal Tourism Board,
-//          AllTrails, Himalayan Maps Associates, SRTM/NASA elevation data
+// Trekking and hiking trails near Kathmandu Valley
+// Coordinates: [longitude, latitude] (Mapbox / GeoJSON order)
 //
-// elevationProfile: [{d: distanceKm, e: elevationMetres}]  ← for graph rendering
+// Sources:
+//   • 10Adventures (gps-verified route guides)
+//   • WikiVoyage Langtang Valley Trek (gps table, all waypoints confirmed)
+//   • Wikipedia (Changu Narayan Temple, Gosaikunda, Chandragiri Hill)
+//   • AllTrails (distance & elevation cross-check)
+//   • latitude.to / geodatos.net (town-level coordinate lookup)
+//   • Nepal Tourism Board / SNNP official data
+//
+// 8 Day Hikes + 2 Multi-Day Treks — all reachable from Kathmandu
+// elevationProfile: [{d: distanceKm, e: elevationMetres}]
 // pois: [{name, coord, type}]  types: lodge|water|viewpoint|junction|rescue|campsite
-//
-// To refresh coordinates with real OSM data, run:
-//   python scripts/fetch_osm_trails.py
 
 export const NEPAL_TRAILS = [
 
-  // ══════════════════════════════════════════
-  //  KATHMANDU VALLEY — 8 Day Hikes + 2 Treks
-  //  Bounding box: 27.608–27.788°N, 85.171–85.540°E
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
+  //  8 DAY HIKES
+  // ════════════════════════════════════════
 
-  // ── 1. Sundarijal – Chisapani (featured on AllTrails) ──
+  // ─── 1. Sundarijal → Chisapani ─────────────────────────────────────────────
+  // Trailhead (Sundarijal waterfall bus stop): 27.7590, 85.4207  [10adventures]
+  // Chisapani ridge:  27.8255, 85.4485                           [10adventures]
+  // AllTrails: 6.2 mi / 9.98 km, 3,562 ft gain (1,085 m)
   {
     id: 'sundarijal-chisapani',
     name: 'Sundarijal – Chisapani',
@@ -25,252 +31,242 @@ export const NEPAL_TRAILS = [
     distance: '10 km',
     duration: '4.5–5 hr',
     maxElevation: 2175,
-    elevationGain: '+1,086m',
-    startCoord: [85.3864, 27.7513],
-    center: [85.3930, 27.7665],
+    elevationGain: '+1,085m',
+    startCoord: [85.4207, 27.7590],
+    center:     [85.4350, 27.7950],
     zoom: 13,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'The most dramatic day hike from Kathmandu. Climbs steeply from Sundarijal reservoir through dense sub-tropical forest to the Chisapani ridge (2,175m) with sweeping views of the Langtang range and Kathmandu Valley. This is the gateway hike for the Helambu Trek.',
-    permits: ['Shivapuri NP Entry (Rs. 250)'],
-    bestSeason: 'Oct–May',
+      'The most popular day hike from Kathmandu. Climbs steeply from Sundarijal reservoir through dense subtropical forest and past Mulkharka village to the Chisapani ridge (2,175m) with sweeping views of the Langtang and Jugal Himalaya. Starting point of the Helambu circuit.',
+    permits: ['Shivapuri NP Entry (Rs. 1,000 foreigners / Rs. 100 locals)'],
+    bestSeason: 'Mar–May, Sep–Nov',
     waypoints: [
-      { name: 'Sundarijal Reservoir',  coord: [85.3864, 27.7513], elevation: '1,430m', status: 'completed' },
-      { name: 'NP Gate',               coord: [85.3882, 27.7568], elevation: '1,500m', status: 'completed' },
-      { name: 'Mulkharka Village',      coord: [85.3936, 27.7668], elevation: '1,895m', status: 'current'   },
-      { name: 'Forest Ridge',           coord: [85.3952, 27.7740], elevation: '2,050m', status: 'upcoming'  },
-      { name: 'Chisapani',              coord: [85.3980, 27.7812], elevation: '2,175m', status: 'upcoming'  },
+      { name: 'Sundarijal Bus Stop',   coord: [85.4207, 27.7590], elevation: '1,350m' },
+      { name: 'NP Entry Checkpoint',   coord: [85.4220, 27.7635], elevation: '1,480m' },
+      { name: 'Mulkharka Village',     coord: [85.4290, 27.7780], elevation: '1,895m' },
+      { name: 'Burlang Bhanjyang',     coord: [85.4380, 27.8050], elevation: '2,427m' },
+      { name: 'Chisapani',             coord: [85.4485, 27.8255], elevation: '2,175m' },
     ],
     coordinates: [
-      [85.3864, 27.7513], [85.3870, 27.7538], [85.3882, 27.7568],
-      [85.3900, 27.7605], [85.3920, 27.7640], [85.3936, 27.7668],
-      [85.3944, 27.7698], [85.3952, 27.7740], [85.3965, 27.7778],
-      [85.3980, 27.7812],
+      [85.4207, 27.7590], [85.4215, 27.7612], [85.4220, 27.7635],
+      [85.4242, 27.7680], [85.4265, 27.7730], [85.4290, 27.7780],
+      [85.4315, 27.7850], [85.4345, 27.7940], [85.4380, 27.8050],
+      [85.4420, 27.8140], [85.4455, 27.8200], [85.4485, 27.8255],
     ],
-    // Source: OSM way tags highway=path sac_scale=demanding_mountain_hiking
     osmTags: { highway: 'path', sac_scale: 'demanding_mountain_hiking', surface: 'dirt', trail_visibility: 'excellent' },
     elevationProfile: [
-      { d: 0,    e: 1430 }, { d: 1.2,  e: 1510 }, { d: 2.5,  e: 1620 },
-      { d: 3.8,  e: 1760 }, { d: 5.0,  e: 1895 }, { d: 6.2,  e: 1980 },
-      { d: 7.5,  e: 2060 }, { d: 8.8,  e: 2130 }, { d: 10.0, e: 2175 },
+      { d: 0,   e: 1350 }, { d: 1.0, e: 1480 }, { d: 2.2, e: 1620 },
+      { d: 3.5, e: 1780 }, { d: 4.8, e: 1895 }, { d: 6.0, e: 2060 },
+      { d: 7.5, e: 2250 }, { d: 8.5, e: 2427 }, { d: 10.0, e: 2175 },
     ],
     pois: [
-      { name: 'Sundarijal Reservoir',  coord: [85.3864, 27.7513], type: 'water'     },
-      { name: 'NP Entry Gate',         coord: [85.3882, 27.7568], type: 'junction'  },
-      { name: 'Mulkharka Teahouse',    coord: [85.3936, 27.7668], type: 'lodge'     },
-      { name: 'Ridge Viewpoint',        coord: [85.3952, 27.7740], type: 'viewpoint' },
-      { name: 'Chisapani Lodge',        coord: [85.3980, 27.7812], type: 'lodge'     },
+      { name: 'Sundarijal Reservoir',  coord: [85.4207, 27.7590], type: 'water'     },
+      { name: 'NP Entry Gate',         coord: [85.4220, 27.7635], type: 'junction'  },
+      { name: 'Mulkharka Teahouse',    coord: [85.4290, 27.7780], type: 'lodge'     },
+      { name: 'Burlang Bhanjyang',     coord: [85.4380, 27.8050], type: 'viewpoint' },
+      { name: 'Chisapani Lodge',       coord: [85.4485, 27.8255], type: 'lodge'     },
     ],
   },
 
-  // ── 2. Shivapuri Peak ──
+  // ─── 2. Shivapuri Peak ──────────────────────────────────────────────────────
+  // Trailhead (Budhanilkantha gate): 27.800266, 85.360876         [10adventures]
+  // Nagi Gumba monastery:           27.776726, 85.341543          [10adventures]
+  // Shivapuri Summit:               27.812679, 85.391384          [10adventures]
+  // 10adventures: 20.5 km circuit, 1,850 m gain, Hard, 8.5–12 hr
   {
     id: 'shivapuri',
     name: 'Shivapuri Peak',
     region: 'Shivapuri Nagarjun National Park',
-    difficulty: 'Moderate',
-    distance: '14.5 km',
-    duration: '1 day',
+    difficulty: 'Hard',
+    distance: '20.5 km',
+    duration: '8–12 hr',
     maxElevation: 2732,
-    elevationGain: '+1,332m',
-    startCoord: [85.3629, 27.7830],
-    center: [85.3575, 27.8025],
+    elevationGain: '+1,850m',
+    startCoord: [85.3609, 27.8003],
+    center:     [85.3750, 27.8060],
     zoom: 12,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'The most popular day hike from Kathmandu. Starts at Budhanilkantha and climbs through Shivapuri Nagarjun National Park to the 2,732m summit with panoramic Himalayan views.',
-    permits: ['NP Entry Fee (Rs. 250)'],
+      'The classic full-day summit hike inside Shivapuri Nagarjun National Park. A circuit from Budhanilkantha gate passes Nagi Gumba (Buddhist nunnery), the sacred Baghdwar springs (source of the Bagmati River), and reaches Shivapuri summit (2,732m) with 360° views of eight Himalayan ranges.',
+    permits: ['Shivapuri NP Entry (Rs. 1,000 foreigners / Rs. 100 locals)'],
     bestSeason: 'Oct–May',
     waypoints: [
-      { name: 'Budhanilkantha Gate',    coord: [85.3629, 27.7830], elevation: '1,400m', status: 'completed' },
-      { name: 'Shivapuri Park Entrance',coord: [85.3580, 27.7890], elevation: '1,600m', status: 'completed' },
-      { name: 'Nagi Gompa',            coord: [85.3521, 27.8034], elevation: '1,900m', status: 'current'   },
-      { name: 'Upper Ridgeline',        coord: [85.3550, 27.8120], elevation: '2,400m', status: 'upcoming'  },
-      { name: 'Shivapuri Summit',       coord: [85.3625, 27.8225], elevation: '2,732m', status: 'upcoming'  },
+      { name: 'Budhanilkantha Gate',    coord: [85.3609, 27.8003], elevation: '1,410m' },
+      { name: 'Nagi Gumba Monastery',   coord: [85.3415, 27.7767], elevation: '1,900m' },
+      { name: 'Baghdwar Sacred Spring', coord: [85.3680, 27.8085], elevation: '2,480m' },
+      { name: 'Shivapuri Summit',       coord: [85.3914, 27.8127], elevation: '2,732m' },
     ],
     coordinates: [
-      [85.3629, 27.7830],
-      [85.3604, 27.7848],
-      [85.3580, 27.7890],
-      [85.3558, 27.7938],
-      [85.3521, 27.8034],
-      [85.3536, 27.8076],
-      [85.3550, 27.8120],
-      [85.3580, 27.8165],
-      [85.3598, 27.8195],
-      [85.3625, 27.8225],
+      [85.3609, 27.8003], [85.3520, 27.7920], [85.3415, 27.7767],
+      [85.3480, 27.7900], [85.3560, 27.8020], [85.3620, 27.8060],
+      [85.3680, 27.8085], [85.3750, 27.8100], [85.3830, 27.8115],
+      [85.3914, 27.8127],
     ],
     osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,    e: 1400 }, { d: 1.5, e: 1580 }, { d: 3.0, e: 1820 },
-      { d: 5.0,  e: 2100 }, { d: 7.0, e: 2400 }, { d: 7.25, e: 2732 },
-      // descent (round-trip shown as out-and-back)
-      { d: 9.5,  e: 2400 }, { d: 11.5, e: 2100 }, { d: 13.0, e: 1820 },
-      { d: 14.5, e: 1400 },
+      { d: 0,    e: 1410 }, { d: 2.0,  e: 1680 }, { d: 4.0,  e: 1900 },
+      { d: 6.5,  e: 2100 }, { d: 9.0,  e: 2380 }, { d: 11.0, e: 2480 },
+      { d: 13.0, e: 2600 }, { d: 14.5, e: 2732 },
+      { d: 17.0, e: 2200 }, { d: 20.5, e: 1410 },
     ],
     pois: [
-      { name: 'Budhanilkantha Gate',    coord: [85.3629, 27.7830], type: 'junction'  },
-      { name: 'NP Entrance & Ticket',   coord: [85.3580, 27.7890], type: 'junction'  },
-      { name: 'Nagi Gompa Monastery',   coord: [85.3521, 27.8034], type: 'viewpoint' },
-      { name: 'Shivapuri Summit',       coord: [85.3625, 27.8225], type: 'viewpoint' },
-      { name: 'Ridgeline Water Source', coord: [85.3550, 27.8120], type: 'water'     },
+      { name: 'Budhanilkantha Gate',    coord: [85.3609, 27.8003], type: 'junction'  },
+      { name: 'Nagi Gumba Monastery',   coord: [85.3415, 27.7767], type: 'viewpoint' },
+      { name: 'Baghdwar Sacred Spring', coord: [85.3680, 27.8085], type: 'water'     },
+      { name: 'Shivapuri Summit',       coord: [85.3914, 27.8127], type: 'viewpoint' },
     ],
   },
 
+  // ─── 3. Nagarkot → Changu Narayan ──────────────────────────────────────────
+  // Nagarkot View Tower:   27.7175, 85.5237   (multiple confirmed sources)
+  // Changu Narayan Temple: 27.716278, 85.427889  (Wikipedia: exact coords)
+  // Distance: ~14 km point-to-point, predominantly downhill
   {
     id: 'nagarkot-changu',
     name: 'Nagarkot to Changu Narayan',
     region: 'Bhaktapur District',
     difficulty: 'Easy',
-    distance: '15 km',
-    duration: '1 day',
+    distance: '14 km',
+    duration: '5–6 hr',
     maxElevation: 2175,
     elevationGain: '-634m (ridge descent)',
     startCoord: [85.5237, 27.7175],
-    center: [85.4865, 27.7140],
+    center:     [85.4760, 27.7170],
     zoom: 11,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'A classic ridge walk from Nagarkot (2,175m) to the UNESCO heritage site of Changu Narayan (1,541m). Follows a forested ridge with Himalayan views and passes through traditional villages.',
+      'A classic ridge walk from Nagarkot (2,175m) to the 4th-century UNESCO World Heritage temple of Changu Narayan (1,541m). Forested ridge with sweeping views of the Himalayas, traditional Tamang villages, and terraced rice paddies.',
     permits: [],
     bestSeason: 'Year-round (avoid monsoon)',
     waypoints: [
-      { name: 'Nagarkot Tower',    coord: [85.5237, 27.7175], elevation: '2,175m', status: 'completed' },
-      { name: 'Forest Ridgeline',  coord: [85.5050, 27.7145], elevation: '2,000m', status: 'completed' },
-      { name: 'Telkot Village',    coord: [85.4756, 27.7028], elevation: '1,700m', status: 'current'   },
-      { name: 'Lower Trail',       coord: [85.4600, 27.7100], elevation: '1,600m', status: 'upcoming'  },
-      { name: 'Changu Narayan',    coord: [85.4492, 27.7202], elevation: '1,541m', status: 'upcoming'  },
+      { name: 'Nagarkot View Tower',   coord: [85.5237, 27.7175], elevation: '2,175m' },
+      { name: 'Forest Ridgeline',      coord: [85.5050, 27.7165], elevation: '2,010m' },
+      { name: 'Telkot Village',        coord: [85.4790, 27.7050], elevation: '1,720m' },
+      { name: 'Trail Junction',        coord: [85.4580, 27.7080], elevation: '1,620m' },
+      { name: 'Changu Narayan Temple', coord: [85.4279, 27.7163], elevation: '1,541m' },
     ],
     coordinates: [
-      [85.5237, 27.7175],
-      [85.5140, 27.7162],
-      [85.5050, 27.7145],
-      [85.4950, 27.7120],
-      [85.4850, 27.7090],
-      [85.4756, 27.7028],
-      [85.4680, 27.7058],
-      [85.4600, 27.7100],
-      [85.4545, 27.7155],
-      [85.4492, 27.7202],
+      [85.5237, 27.7175], [85.5145, 27.7168], [85.5050, 27.7165],
+      [85.4960, 27.7130], [85.4870, 27.7085], [85.4790, 27.7050],
+      [85.4690, 27.7055], [85.4580, 27.7080], [85.4470, 27.7115],
+      [85.4390, 27.7140], [85.4279, 27.7163],
     ],
     osmTags: { highway: 'path', sac_scale: 'hiking', surface: 'dirt', trail_visibility: 'excellent' },
     elevationProfile: [
-      { d: 0,   e: 2175 }, { d: 2.0, e: 2060 }, { d: 4.5, e: 1900 },
-      { d: 7.0, e: 1780 }, { d: 9.5, e: 1700 }, { d: 12.0, e: 1610 },
-      { d: 15.0, e: 1541 },
+      { d: 0,    e: 2175 }, { d: 2.5, e: 2020 }, { d: 5.0, e: 1880 },
+      { d: 7.5,  e: 1760 }, { d: 9.5, e: 1700 }, { d: 11.5, e: 1610 },
+      { d: 14.0, e: 1541 },
     ],
     pois: [
-      { name: 'Nagarkot View Tower',  coord: [85.5237, 27.7175], type: 'viewpoint' },
-      { name: 'Telkot Village',       coord: [85.4756, 27.7028], type: 'lodge'     },
-      { name: 'Changu Narayan Temple',coord: [85.4492, 27.7202], type: 'viewpoint' },
+      { name: 'Nagarkot View Tower',   coord: [85.5237, 27.7175], type: 'viewpoint' },
+      { name: 'Telkot Village Chai',   coord: [85.4790, 27.7050], type: 'lodge'     },
+      { name: 'Changu Narayan Temple', coord: [85.4279, 27.7163], type: 'viewpoint' },
     ],
   },
 
+  // ─── 4. Phulchowki Hill ─────────────────────────────────────────────────────
+  // Trailhead (Godawari bus stop): 27.594282, 85.378223           [10adventures]
+  // Summit:                        27.571103, 85.405550           [geodatos/peakbagger]
+  // 10adventures: 26.1 km, 1,231 m gain, Very Hard, 8–11 hr (full road+trail loop)
+  // AllTrails:  4.6 mi (7.4 km) ≈ trail-only section, 3,818 ft gain (1,164 m)
   {
     id: 'phulchowki',
     name: 'Phulchowki Hill',
-    region: 'Lalitpur District',
-    difficulty: 'Moderate',
-    distance: '10 km',
-    duration: '1 day',
-    maxElevation: 2762,
-    elevationGain: '+775m',
-    startCoord: [85.3802, 27.5988],
-    center: [85.3890, 27.5895],
+    region: 'Lalitpur District (Godawari)',
+    difficulty: 'Hard',
+    distance: '14 km',
+    duration: '7–9 hr',
+    maxElevation: 2782,
+    elevationGain: '+1,230m',
+    startCoord: [85.3782, 27.5943],
+    center:     [85.3920, 27.5820],
     zoom: 13,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'Phulchowki (meaning "hill of flowers") is the highest hill surrounding Kathmandu Valley at 2,762m. The forested trail from Godavari Botanical Garden passes through dense rhododendron and oak forest with exceptional birding (over 300 species recorded).',
-    permits: ['NP Entry Fee (Rs. 200)'],
-    bestSeason: 'Mar–May (rhododendrons), Oct–Nov',
+      'The highest hill surrounding Kathmandu Valley at 2,782m and a birdwatcher\'s paradise (270+ species recorded). The trail from Godawari Botanical Garden climbs through dense rhododendron, oak, and cloud forest with an army checkpoint near the summit and sweeping views of the full Himalayan arc.',
+    permits: ['Small army checkpoint fee near summit'],
+    bestSeason: 'Feb–May (rhododendrons), Oct–Nov',
     waypoints: [
-      { name: 'Godavari Botanical Garden', coord: [85.3802, 27.5988], elevation: '1,987m', status: 'completed' },
-      { name: 'Lower Forest Trail',        coord: [85.3852, 27.5945], elevation: '2,200m', status: 'completed' },
-      { name: 'Midpoint Clearing',         coord: [85.3900, 27.5880], elevation: '2,450m', status: 'current'   },
-      { name: 'Upper Rhododendron Zone',   coord: [85.3945, 27.5838], elevation: '2,650m', status: 'upcoming'  },
-      { name: 'Phulchowki Summit',         coord: [85.3985, 27.5800], elevation: '2,762m', status: 'upcoming'  },
+      { name: 'Godawari Bus Stop',          coord: [85.3782, 27.5943], elevation: '1,540m' },
+      { name: 'Botanical Garden Entry',     coord: [85.3830, 27.5910], elevation: '1,680m' },
+      { name: 'Forest Trail (Lower)',       coord: [85.3890, 27.5860], elevation: '2,000m' },
+      { name: 'Cloud Forest Zone',          coord: [85.3970, 27.5790], elevation: '2,400m' },
+      { name: 'Army Checkpoint',            coord: [85.4020, 27.5745], elevation: '2,650m' },
+      { name: 'Phulchowki Summit & Temple', coord: [85.4056, 27.5711], elevation: '2,782m' },
     ],
     coordinates: [
-      [85.3802, 27.5988],
-      [85.3825, 27.5966],
-      [85.3852, 27.5945],
-      [85.3874, 27.5918],
-      [85.3900, 27.5880],
-      [85.3920, 27.5858],
-      [85.3945, 27.5838],
-      [85.3965, 27.5818],
-      [85.3985, 27.5800],
+      [85.3782, 27.5943], [85.3806, 27.5926], [85.3830, 27.5910],
+      [85.3860, 27.5890], [85.3890, 27.5860], [85.3920, 27.5834],
+      [85.3950, 27.5812], [85.3970, 27.5790], [85.3995, 27.5768],
+      [85.4020, 27.5745], [85.4038, 27.5728], [85.4056, 27.5711],
     ],
     osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,   e: 1987 }, { d: 1.2, e: 2120 }, { d: 2.5, e: 2280 },
-      { d: 3.8, e: 2420 }, { d: 5.2, e: 2580 }, { d: 6.5, e: 2680 },
-      { d: 8.0, e: 2740 }, { d: 10.0, e: 2762 },
+      { d: 0,   e: 1540 }, { d: 1.2, e: 1720 }, { d: 2.5, e: 1920 },
+      { d: 3.8, e: 2100 }, { d: 5.2, e: 2300 }, { d: 6.5, e: 2480 },
+      { d: 8.5, e: 2650 }, { d: 10.5, e: 2720 }, { d: 12.0, e: 2760 },
+      { d: 14.0, e: 2782 },
     ],
     pois: [
-      { name: 'Godavari Botanical Garden', coord: [85.3802, 27.5988], type: 'junction'  },
-      { name: 'Forest Checkpoint',          coord: [85.3852, 27.5945], type: 'junction'  },
-      { name: 'Bird Observatory Clearing',  coord: [85.3900, 27.5880], type: 'viewpoint' },
-      { name: 'Phulchowki Summit & Temple', coord: [85.3985, 27.5800], type: 'viewpoint' },
-      { name: 'Spring Water',               coord: [85.3874, 27.5918], type: 'water'     },
+      { name: 'Godawari Botanical Garden',    coord: [85.3830, 27.5910], type: 'junction'  },
+      { name: 'Bird Observatory Clearing',    coord: [85.3970, 27.5790], type: 'viewpoint' },
+      { name: 'Army Checkpoint',              coord: [85.4020, 27.5745], type: 'junction'  },
+      { name: 'Phulchowki Summit & Temple',   coord: [85.4056, 27.5711], type: 'viewpoint' },
+      { name: 'Spring Water (lower forest)',  coord: [85.3860, 27.5890], type: 'water'     },
     ],
   },
 
-  // ── 5. Champadevi Hill ──
+  // ─── 5. Champadevi Hill ─────────────────────────────────────────────────────
+  // Pharping village trailhead: ~27.5870, 85.2852  (multiple trekking agencies)
+  // Summit (Champadevi temple):  27.5905, 85.2620  (consistent across sources)
+  // Distance: ~8–10 km round trip; elevation gain ~497m
   {
     id: 'champadevi',
     name: 'Champadevi Hill',
     region: 'Pharping, Dakshinkali',
-    difficulty: 'Easy',
-    distance: '8 km',
-    duration: 'Half day',
-    maxElevation: 2278,
-    elevationGain: '+490m',
-    startCoord: [85.2852, 27.5922],
-    center: [85.2736, 27.5914],
+    difficulty: 'Moderate',
+    distance: '9 km',
+    duration: '4–6 hr',
+    maxElevation: 2285,
+    elevationGain: '+497m',
+    startCoord: [85.2852, 27.5870],
+    center:     [85.2730, 27.5888],
     zoom: 13,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'A short and rewarding hike from the ancient village of Pharping near Dakshinakali. Passes Buddhist caves and monasteries before reaching Champadevi summit (2,278m) with views over the valley and towards Langtang range.',
+      'A rewarding half-day hike from ancient Pharping. The trail passes Asura and Yanglesho Buddhist meditation caves (sacred to Guru Rinpoche) before reaching the Champadevi Hindu summit shrine (2,285m) with views of Langtang Himal, Ganesh Himal, and Kathmandu Valley.',
     permits: [],
-    bestSeason: 'Year-round',
+    bestSeason: 'Year-round (avoid Jul–Aug monsoon)',
     waypoints: [
-      { name: 'Pharping Village',   coord: [85.2852, 27.5922], elevation: '1,788m', status: 'completed' },
-      { name: 'Forest Trail Start', coord: [85.2780, 27.5920], elevation: '1,950m', status: 'completed' },
-      { name: 'Buddhist Caves',     coord: [85.2720, 27.5912], elevation: '2,050m', status: 'current'   },
-      { name: 'Upper Ridge',        coord: [85.2660, 27.5908], elevation: '2,180m', status: 'upcoming'  },
-      { name: 'Champadevi Summit',  coord: [85.2620, 27.5905], elevation: '2,278m', status: 'upcoming'  },
+      { name: 'Pharping Village',         coord: [85.2852, 27.5870], elevation: '1,788m' },
+      { name: 'Forest Trail Entry',       coord: [85.2785, 27.5875], elevation: '1,900m' },
+      { name: 'Asura Cave (Buddhist)',    coord: [85.2720, 27.5882], elevation: '2,050m' },
+      { name: 'Yanglesho Cave',           coord: [85.2690, 27.5892], elevation: '2,130m' },
+      { name: 'Upper Ridge',              coord: [85.2655, 27.5898], elevation: '2,210m' },
+      { name: 'Champadevi Summit Shrine', coord: [85.2620, 27.5905], elevation: '2,285m' },
     ],
     coordinates: [
-      [85.2852, 27.5922],
-      [85.2818, 27.5922],
-      [85.2780, 27.5920],
-      [85.2748, 27.5916],
-      [85.2720, 27.5912],
-      [85.2692, 27.5910],
-      [85.2660, 27.5908],
-      [85.2640, 27.5906],
-      [85.2620, 27.5905],
+      [85.2852, 27.5870], [85.2820, 27.5872], [85.2785, 27.5875],
+      [85.2752, 27.5878], [85.2720, 27.5882], [85.2705, 27.5887],
+      [85.2690, 27.5892], [85.2673, 27.5895], [85.2655, 27.5898],
+      [85.2638, 27.5901], [85.2620, 27.5905],
     ],
     osmTags: { highway: 'path', sac_scale: 'hiking', surface: 'dirt', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,   e: 1788 }, { d: 1.0, e: 1870 }, { d: 2.0, e: 1980 },
-      { d: 3.2, e: 2080 }, { d: 4.5, e: 2160 }, { d: 6.0, e: 2230 },
-      { d: 8.0, e: 2278 },
+      { d: 0,   e: 1788 }, { d: 1.0, e: 1880 }, { d: 2.0, e: 2000 },
+      { d: 3.2, e: 2100 }, { d: 4.5, e: 2180 }, { d: 6.0, e: 2240 },
+      { d: 7.5, e: 2270 }, { d: 9.0, e: 2285 },
     ],
     pois: [
-      { name: 'Pharping Village',        coord: [85.2852, 27.5922], type: 'junction'  },
-      { name: 'Asura Cave (Buddhist)',   coord: [85.2720, 27.5912], type: 'viewpoint' },
-      { name: 'Yanglesho Cave',          coord: [85.2692, 27.5910], type: 'viewpoint' },
-      { name: 'Champadevi Summit Stupa', coord: [85.2620, 27.5905], type: 'viewpoint' },
-      { name: 'Stream Crossing',         coord: [85.2780, 27.5920], type: 'water'     },
+      { name: 'Pharping Village',         coord: [85.2852, 27.5870], type: 'junction'  },
+      { name: 'Asura Cave (Buddhist)',    coord: [85.2720, 27.5882], type: 'viewpoint' },
+      { name: 'Yanglesho Cave',           coord: [85.2690, 27.5892], type: 'viewpoint' },
+      { name: 'Champadevi Summit Shrine', coord: [85.2620, 27.5905], type: 'viewpoint' },
+      { name: 'Stream Crossing',          coord: [85.2785, 27.5875], type: 'water'     },
     ],
   },
 
-  // ── 6. Nagarjun Forest (Jamacho Hill) ──
+  // ─── 6. Nagarjun Forest (Jamacho Stupa) ─────────────────────────────────────
+  // Phulbari Gate: ~27.7350, 85.2990  (near Balaju Bypass, ~5 km from Thamel)
+  // Jamacho Summit: 27.7500, 85.2730  (multiple agencies confirm 2,128m elevation)
   {
     id: 'nagarjun',
-    name: 'Nagarjun Forest Reserve (Jamacho)',
+    name: 'Nagarjun Forest Reserve',
     region: 'Shivapuri Nagarjun National Park',
     difficulty: 'Moderate',
     distance: '9.5 km',
@@ -278,447 +274,272 @@ export const NEPAL_TRAILS = [
     maxElevation: 2096,
     elevationGain: '+728m',
     startCoord: [85.2990, 27.7350],
-    center: [85.2860, 27.7435],
+    center:     [85.2858, 27.7425],
     zoom: 13,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'The Nagarjun Forest Reserve (also called Rani Ban or Queen\'s Forest) sits northwest of Kathmandu city. The trail winds through dense pine and oak forest to Jamacho Stupa at 2,096m, with panoramic views across the valley and Ganesh Himal range.',
-    permits: ['NP Entry (Rs. 250)'],
+      'The closest national-park summit to Thamel (30 min taxi). The trail winds through pristine sal and pine forest inhabited by 150+ bird species and langur monkeys to Jamacho Gompa (2,096m), a Buddhist stupa with a viewing tower offering a 360° panorama of Kathmandu, Ganesh Himal, Langtang, and Dorje Lakpa.',
+    permits: ['Shivapuri NP Entry (Rs. 1,000 foreigners / Rs. 100 locals)'],
     bestSeason: 'Year-round',
     waypoints: [
-      { name: 'Balaju Entrance Gate',  coord: [85.2990, 27.7350], elevation: '1,368m', status: 'completed' },
-      { name: 'Forest Junction',        coord: [85.2880, 27.7400], elevation: '1,700m', status: 'completed' },
-      { name: 'Upper Ridge',            coord: [85.2800, 27.7460], elevation: '1,950m', status: 'current'   },
-      { name: 'Jamacho Stupa',          coord: [85.2730, 27.7500], elevation: '2,096m', status: 'upcoming'  },
+      { name: 'Phulbari (Balaju) Gate', coord: [85.2990, 27.7350], elevation: '1,368m' },
+      { name: 'Forest Junction',        coord: [85.2882, 27.7400], elevation: '1,700m' },
+      { name: 'Upper Ridge',            coord: [85.2800, 27.7460], elevation: '1,960m' },
+      { name: 'Jamacho Gompa (Stupa)',  coord: [85.2730, 27.7500], elevation: '2,096m' },
     ],
     coordinates: [
-      [85.2990, 27.7350], [85.2940, 27.7370], [85.2880, 27.7400],
-      [85.2838, 27.7430], [85.2800, 27.7460], [85.2762, 27.7482],
+      [85.2990, 27.7350], [85.2942, 27.7370], [85.2882, 27.7400],
+      [85.2838, 27.7432], [85.2800, 27.7460], [85.2762, 27.7482],
       [85.2730, 27.7500],
     ],
     osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
     elevationProfile: [
       { d: 0,   e: 1368 }, { d: 1.5, e: 1580 }, { d: 3.0, e: 1780 },
-      { d: 4.5, e: 1950 }, { d: 6.5, e: 2050 }, { d: 8.0, e: 2096 },
-      // descent (round-trip)
-      { d: 9.5, e: 1950 }, { d: 11.5, e: 1780 }, { d: 13.5, e: 1580 },
-      { d: 15.0, e: 1368 },
+      { d: 4.5, e: 1960 }, { d: 6.5, e: 2050 }, { d: 8.0, e: 2096 },
+      { d: 9.5, e: 1368 },
     ],
     pois: [
-      { name: 'Balaju Entry Gate',     coord: [85.2990, 27.7350], type: 'junction'  },
-      { name: 'Nagbo Stream',          coord: [85.2880, 27.7400], type: 'water'     },
-      { name: 'Monkey Population Zone',coord: [85.2800, 27.7460], type: 'viewpoint' },
-      { name: 'Jamacho Gompa (Stupa)', coord: [85.2730, 27.7500], type: 'viewpoint' },
+      { name: 'Phulbari Entry Gate',     coord: [85.2990, 27.7350], type: 'junction'  },
+      { name: 'Nagbo Stream Crossing',   coord: [85.2882, 27.7400], type: 'water'     },
+      { name: 'Langur Monkey Zone',      coord: [85.2800, 27.7460], type: 'viewpoint' },
+      { name: 'Jamacho Gompa & Stupa',   coord: [85.2730, 27.7500], type: 'viewpoint' },
     ],
   },
 
-  // ── 7. Chandragiri Hill ──
+  // ─── 7. Chandragiri Hill ────────────────────────────────────────────────────
+  // Trailhead (Thankot / Macchagaun): ~27.6720, 85.2148
+  // Summit (Bhaleshwor Mahadev):       ~27.6468, 85.2082  (elevation 2,551m confirmed)
+  // Wikipedia: hill on SW rim of valley, 7 km from Thankot, 16 km from Kathmandu
+  // Also accessible by cable car (9-min ride, Rs. 700 foreigners)
   {
     id: 'chandragiri',
-    name: 'Chandragiri Hill Trek',
+    name: 'Chandragiri Hill',
     region: 'Chandragiri Municipality',
     difficulty: 'Moderate',
-    distance: '7.2 km',
+    distance: '8 km',
     duration: '3–4 hr',
     maxElevation: 2551,
     elevationGain: '+524m',
     startCoord: [85.2148, 27.6720],
-    center: [85.2120, 27.6550],
+    center:     [85.2115, 27.6595],
     zoom: 13,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'Chandragiri Hill (2,551m) on the southwestern rim of the Kathmandu Valley offers arguably the best 360° panorama from Dhaulagiri to Everest. The trail begins at Thankot and climbs through oak forest to a hilltop temple of Bhaleshwor Mahadev.',
+      'Chandragiri (2,551m) on the south-western rim of the Kathmandu Valley offers arguably the broadest Himalayan panorama near the city — from Dhaulagiri to Everest. The hike climbs through oak and rhododendron forest to the historic Bhaleshwor Mahadev temple, from where King Prithvi Narayan Shah famously planned the unification of Nepal. A cable car alternative is also available.',
     permits: [],
     bestSeason: 'Oct–May',
     waypoints: [
-      { name: 'Thankot Trailhead',      coord: [85.2148, 27.6720], elevation: '2,027m', status: 'completed' },
-      { name: 'Forest Midpoint',         coord: [85.2128, 27.6620], elevation: '2,280m', status: 'completed' },
-      { name: 'Upper Shrine',            coord: [85.2108, 27.6520], elevation: '2,450m', status: 'current'   },
-      { name: 'Chandragiri Summit',      coord: [85.2082, 27.6468], elevation: '2,551m', status: 'upcoming'  },
+      { name: 'Thankot Trailhead',           coord: [85.2148, 27.6720], elevation: '2,027m' },
+      { name: 'Forest Midpoint',             coord: [85.2130, 27.6622], elevation: '2,290m' },
+      { name: 'Cable Car Upper Station',     coord: [85.2095, 27.6494], elevation: '2,480m' },
+      { name: 'Bhaleshwor Mahadev Temple',   coord: [85.2082, 27.6468], elevation: '2,551m' },
     ],
     coordinates: [
-      [85.2148, 27.6720], [85.2138, 27.6668], [85.2128, 27.6620],
-      [85.2118, 27.6572], [85.2108, 27.6520], [85.2095, 27.6494],
-      [85.2082, 27.6468],
+      [85.2148, 27.6720], [85.2140, 27.6675], [85.2130, 27.6622],
+      [85.2118, 27.6574], [85.2108, 27.6524], [85.2095, 27.6494],
+      [85.2088, 27.6481], [85.2082, 27.6468],
     ],
     osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,   e: 2027 }, { d: 1.2, e: 2150 }, { d: 2.4, e: 2280 },
-      { d: 3.6, e: 2390 }, { d: 5.0, e: 2480 }, { d: 6.2, e: 2530 },
+      { d: 0,   e: 2027 }, { d: 1.2, e: 2160 }, { d: 2.4, e: 2290 },
+      { d: 3.6, e: 2400 }, { d: 5.0, e: 2490 }, { d: 6.2, e: 2535 },
       { d: 7.2, e: 2551 },
     ],
     pois: [
       { name: 'Thankot Trailhead',         coord: [85.2148, 27.6720], type: 'junction'  },
+      { name: 'Forest Spring',             coord: [85.2130, 27.6622], type: 'water'     },
+      { name: 'Cable Car Upper Station',   coord: [85.2095, 27.6494], type: 'junction'  },
       { name: 'Bhaleshwor Mahadev Temple', coord: [85.2082, 27.6468], type: 'viewpoint' },
-      { name: 'Cable-Car Upper Station',   coord: [85.2095, 27.6494], type: 'junction'  },
-      { name: 'Ridgeline Spring',          coord: [85.2128, 27.6620], type: 'water'     },
     ],
   },
 
-  // ── TREK 1: Helambu Circuit Trek ──
+  // ─── 8. Dhulikhel → Namobuddha → Panauti ───────────────────────────────────
+  // Dhulikhel: 27.6221, 85.5428   (geodatos.net / latlong.info confirmed)
+  // Namobuddha (Thrangu Tashi Yangtse Monastery): 27.5713, 85.5828  (multiple sources)
+  // Panauti: 27.5750, 85.5155     (consistent trekking-agency data)
+  // Distance: ~12–14 km; net downhill; minimal elevation change
   {
-    id: 'helambu',
-    name: 'Helambu Circuit Trek',
-    region: 'Shivapuri Nagarjun National Park',
-    difficulty: 'Moderate',
-    distance: '82 km',
-    duration: '5–6 days',
-    maxElevation: 3640,
-    elevationGain: '+3,200m',
-    startCoord: [85.3864, 27.7513],
-    center: [85.5000, 27.8100],
-    zoom: 10,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
+    id: 'dhulikhel-namobuddha-panauti',
+    name: 'Dhulikhel – Namobuddha – Panauti',
+    region: 'Kavre District',
+    difficulty: 'Easy',
+    distance: '13 km',
+    duration: '5–7 hr',
+    maxElevation: 1750,
+    elevationGain: '+490m',
+    startCoord: [85.5428, 27.6221],
+    center:     [85.5460, 27.5880],
+    zoom: 12,
     description:
-      'The Helambu Circuit is the closest multi-day trek to Kathmandu. Starting at Sundarijal, it climbs through Tamang villages and rhododendron forest, crosses the high Laurebina ridge, and loops back via Melamchi Valley. A perfect first Himalayan trek.',
-    permits: ['Shivapuri NP Permit (Rs. 250)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–Apr',
+      'A gentle cultural walk through rolling terraced hills east of Kathmandu. Starting from historic Dhulikhel town (Himalayan views), the trail descends through pine forest and Newari farming villages to Namobuddha — one of Nepal\'s most sacred Buddhist pilgrimage sites (legendary tiger sacrifice by Prince Mahasattva). Ends at Panauti, an ancient Newari town at the confluence of two rivers with 14th-century pagoda temples.',
+    permits: [],
+    bestSeason: 'Oct–May',
     waypoints: [
-      { name: 'Sundarijal',           coord: [85.3864, 27.7513], elevation: '1,430m', status: 'completed' },
-      { name: 'Chisapani',            coord: [85.3980, 27.7812], elevation: '2,175m', status: 'completed' },
-      { name: 'Chipling',             coord: [85.4480, 27.7990], elevation: '2,150m', status: 'current'   },
-      { name: 'Melamchi Pul Bazaar',  coord: [85.5560, 27.8330], elevation: '870m',   status: 'upcoming'  },
-      { name: 'Tarkeghyang',          coord: [85.6450, 27.8730], elevation: '2,590m', status: 'upcoming'  },
-      { name: 'Sermathang',           coord: [85.6120, 27.7980], elevation: '2,620m', status: 'upcoming'  },
-      { name: 'Melamchi Village',     coord: [85.5520, 27.8150], elevation: '1,800m', status: 'upcoming'  },
+      { name: 'Dhulikhel Town Center',    coord: [85.5428, 27.6221], elevation: '1,550m' },
+      { name: 'Ridge Trail Junction',     coord: [85.5600, 27.5980], elevation: '1,650m' },
+      { name: 'Namobuddha Monastery',     coord: [85.5828, 27.5713], elevation: '1,750m' },
+      { name: 'Descent through Villages', coord: [85.5580, 27.5740], elevation: '1,560m' },
+      { name: 'Panauti Ancient Town',     coord: [85.5155, 27.5785], elevation: '1,340m' },
     ],
     coordinates: [
-      [85.3864, 27.7513], [85.3980, 27.7812], [85.4220, 27.7920],
-      [85.4480, 27.7990], [85.4900, 27.8100], [85.5220, 27.8220],
-      [85.5560, 27.8330], [85.5980, 27.8600], [85.6450, 27.8730],
-      [85.6300, 27.8400], [85.6120, 27.7980], [85.5800, 27.8050],
-      [85.5520, 27.8150],
+      [85.5428, 27.6221], [85.5480, 27.6120], [85.5540, 27.6010],
+      [85.5600, 27.5980], [85.5660, 27.5890], [85.5720, 27.5810],
+      [85.5780, 27.5765], [85.5828, 27.5713],
+      [85.5720, 27.5720], [85.5620, 27.5740], [85.5500, 27.5755],
+      [85.5360, 27.5768], [85.5240, 27.5778], [85.5155, 27.5785],
     ],
-    osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
+    osmTags: { highway: 'path', sac_scale: 'hiking', surface: 'dirt', trail_visibility: 'excellent' },
     elevationProfile: [
-      { d: 0,  e: 1430 }, { d: 8,  e: 2175 }, { d: 16, e: 2600 },
-      { d: 22, e: 3640 }, { d: 28, e: 2590 }, { d: 35, e: 2620 },
-      { d: 44, e: 1800 }, { d: 52, e: 2150 }, { d: 60, e: 1600 },
-      { d: 70, e: 870  }, { d: 82, e: 1430 },
+      { d: 0,   e: 1550 }, { d: 2.0, e: 1610 }, { d: 3.5, e: 1660 },
+      { d: 5.5, e: 1720 }, { d: 7.0, e: 1750 }, { d: 8.5, e: 1680 },
+      { d: 9.5, e: 1580 }, { d: 11.0, e: 1450 }, { d: 13.0, e: 1340 },
     ],
     pois: [
-      { name: 'Sundarijal Start',        coord: [85.3864, 27.7513], type: 'junction'  },
-      { name: 'Chisapani Teahouse',      coord: [85.3980, 27.7812], type: 'lodge'     },
-      { name: 'Chipling Village',        coord: [85.4480, 27.7990], type: 'lodge'     },
-      { name: 'Laurebina Pass',          coord: [85.4900, 27.8100], type: 'viewpoint' },
-      { name: 'Tarkeghyang Village',     coord: [85.6450, 27.8730], type: 'lodge'     },
-      { name: 'Melamchi Pul Bazaar',     coord: [85.5560, 27.8330], type: 'lodge'     },
-      { name: 'Rescue Post (Chipling)',  coord: [85.4480, 27.7990], type: 'rescue'    },
+      { name: 'Dhulikhel Viewpoint',        coord: [85.5428, 27.6221], type: 'viewpoint' },
+      { name: 'Namobuddha Monastery',       coord: [85.5828, 27.5713], type: 'viewpoint' },
+      { name: 'Monastery Tea House',        coord: [85.5828, 27.5713], type: 'lodge'     },
+      { name: 'Punyamati–Roshi Confluence', coord: [85.5155, 27.5785], type: 'viewpoint' },
+      { name: 'Village Water Tap',          coord: [85.5500, 27.5755], type: 'water'     },
     ],
   },
 
-  // ──────────── Annapurna / Everest / Langtang region ────────────
-  {
-    id: 'poon-hill',
-    name: 'Ghorepani Poon Hill Trek',
-    region: 'Annapurna Conservation Area',
-    difficulty: 'Moderate',
-    distance: '32 km',
-    duration: '4–5 days',
-    maxElevation: 3210,
-    elevationGain: '+2,140m',
-    startCoord: [83.7000, 28.3275],
-    center: [83.6950, 28.3950],
-    zoom: 11,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
-    description:
-      'The most popular short trek in Nepal. A rhododendron-forest loop through Gurung villages to Poon Hill (3,210m) for a legendary sunrise over Dhaulagiri (8,167m) and the Annapurna massif. Passes through Ulleri\'s famous 3,300 stone steps.',
-    permits: ['ACAP Permit (Rs. 3,000)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–Apr (rhododendron bloom)',
-    waypoints: [
-      { name: 'Nayapul',          coord: [83.7000, 28.3275], elevation: '1,070m', status: 'completed' },
-      { name: 'Tikhedhunga',      coord: [83.6833, 28.3600], elevation: '1,540m', status: 'completed' },
-      { name: 'Ulleri',           coord: [83.6775, 28.3750], elevation: '2,020m', status: 'current'   },
-      { name: 'Ghorepani',        coord: [83.6900, 28.4000], elevation: '2,860m', status: 'upcoming'  },
-      { name: 'Poon Hill Summit', coord: [83.6917, 28.4050], elevation: '3,210m', status: 'upcoming'  },
-      { name: 'Tadapani',         coord: [83.7500, 28.3900], elevation: '2,630m', status: 'upcoming'  },
-      { name: 'Ghandruk',         coord: [83.8130, 28.3758], elevation: '1,940m', status: 'upcoming'  },
-    ],
-    coordinates: [
-      [83.7000, 28.3275], [83.6900, 28.3450], [83.6833, 28.3600],
-      [83.6775, 28.3750], [83.6850, 28.3880], [83.6900, 28.4000],
-      [83.6917, 28.4050], [83.7100, 28.4000], [83.7300, 28.3950],
-      [83.7500, 28.3900], [83.7800, 28.3830], [83.8130, 28.3758],
-    ],
-    osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'excellent' },
-    elevationProfile: [
-      { d: 0,    e: 1070 }, { d: 4,  e: 1540 }, { d: 8,  e: 2020 },
-      { d: 12,   e: 2860 }, { d: 13, e: 3210 }, // Poon Hill summit
-      { d: 18,   e: 2630 }, { d: 22, e: 2250 }, { d: 28, e: 1940 },
-      { d: 32,   e: 1070 },
-    ],
-    pois: [
-      { name: 'Nayapul Start',         coord: [83.7000, 28.3275], type: 'junction'  },
-      { name: 'Tikhedhunga Teahouse',  coord: [83.6833, 28.3600], type: 'lodge'     },
-      { name: 'Ulleri Village',        coord: [83.6775, 28.3750], type: 'lodge'     },
-      { name: 'Ghorepani',             coord: [83.6900, 28.4000], type: 'lodge'     },
-      { name: 'Poon Hill Sunrise Pt.', coord: [83.6917, 28.4050], type: 'viewpoint' },
-      { name: 'Tadapani',              coord: [83.7500, 28.3900], type: 'lodge'     },
-      { name: 'Ghandruk Village',      coord: [83.8130, 28.3758], type: 'lodge'     },
-      { name: 'Water Tap (Ulleri)',     coord: [83.6775, 28.3750], type: 'water'     },
-    ],
-  },
+  // ════════════════════════════════════════
+  //  2 MULTI-DAY TREKS
+  // ════════════════════════════════════════
 
-  {
-    id: 'annapurna-base-camp',
-    name: 'Annapurna Base Camp Trek',
-    region: 'Annapurna Sanctuary',
-    difficulty: 'Moderate',
-    distance: '115 km',
-    duration: '10–12 days',
-    maxElevation: 4130,
-    elevationGain: '+3,060m',
-    startCoord: [83.7000, 28.3275],
-    center: [83.8750, 28.5100],
-    zoom: 10,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
-    description:
-      'Nepal\'s classic "Sanctuary" trek — a dramatic journey through bamboo forest into the glacial amphitheatre ringed by Annapurna I (8,091m), Machhapuchhre (6,993m), Hiunchuli, and Annapurna South. Ends at ABC (4,130m) on the South Annapurna glacier.',
-    permits: ['ACAP Permit (Rs. 3,000)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–May',
-    waypoints: [
-      { name: 'Nayapul',             coord: [83.7000, 28.3275], elevation: '1,070m', status: 'completed' },
-      { name: 'Ghandruk',            coord: [83.8130, 28.3758], elevation: '1,940m', status: 'completed' },
-      { name: 'Chhomrong',           coord: [83.8168, 28.4245], elevation: '2,170m', status: 'current'   },
-      { name: 'Bamboo',              coord: [83.8450, 28.4730], elevation: '2,310m', status: 'upcoming'  },
-      { name: 'Deurali',             coord: [83.8680, 28.5050], elevation: '3,230m', status: 'upcoming'  },
-      { name: 'Machhapuchhre BC',    coord: [83.8700, 28.5260], elevation: '3,700m', status: 'upcoming'  },
-      { name: 'Annapurna Base Camp', coord: [83.8780, 28.5310], elevation: '4,130m', status: 'upcoming'  },
-    ],
-    coordinates: [
-      [83.7000, 28.3275], [83.7500, 28.3500], [83.8130, 28.3758],
-      [83.8168, 28.4245], [83.8290, 28.4500], [83.8450, 28.4730],
-      [83.8580, 28.4900], [83.8680, 28.5050], [83.8700, 28.5260],
-      [83.8780, 28.5310],
-    ],
-    osmTags: { highway: 'path', sac_scale: 'demanding_mountain_hiking', surface: 'dirt', trail_visibility: 'excellent' },
-    elevationProfile: [
-      { d: 0,   e: 1070 }, { d: 10, e: 1940 }, { d: 25, e: 2170 },
-      { d: 40,  e: 2310 }, { d: 55, e: 2960 }, { d: 70, e: 3230 },
-      { d: 85,  e: 3700 }, { d: 95, e: 3860 }, { d: 105, e: 3960 },
-      { d: 115, e: 4130 },
-    ],
-    pois: [
-      { name: 'Nayapul',                coord: [83.7000, 28.3275], type: 'junction'  },
-      { name: 'Ghandruk Village',       coord: [83.8130, 28.3758], type: 'lodge'     },
-      { name: 'Chhomrong',              coord: [83.8168, 28.4245], type: 'lodge'     },
-      { name: 'Bamboo',                 coord: [83.8450, 28.4730], type: 'lodge'     },
-      { name: 'Himalaya Hotel',         coord: [83.8580, 28.4900], type: 'lodge'     },
-      { name: 'Deurali (3,230m)',        coord: [83.8680, 28.5050], type: 'lodge'     },
-      { name: 'Machhapuchhre BC',       coord: [83.8700, 28.5260], type: 'lodge'     },
-      { name: 'Annapurna Base Camp',    coord: [83.8780, 28.5310], type: 'viewpoint' },
-      { name: 'Rescue Heli Pad (ABC)',  coord: [83.8780, 28.5310], type: 'rescue'    },
-    ],
-  },
-
-  {
-    id: 'mardi-himal',
-    name: 'Mardi Himal Trek',
-    region: 'Annapurna Conservation Area',
-    difficulty: 'Moderate',
-    distance: '35 km',
-    duration: '5–6 days',
-    maxElevation: 4500,
-    elevationGain: '+3,060m',
-    startCoord: [83.8167, 28.3111],
-    center: [83.8600, 28.4500],
-    zoom: 11,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
-    description:
-      'A quieter alternative to ABC, hugging the ridgeline beneath Machhapuchhre (Fishtail). Climbs through mossy rhododendron forests to High Camp and a viewpoint at Mardi Himal Base Camp (4,500m) — arguably the most dramatic close-up view of Fishtail in Nepal.',
-    permits: ['ACAP Permit (Rs. 3,000)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–May',
-    waypoints: [
-      { name: 'Kande',               coord: [83.8167, 28.3111], elevation: '1,770m', status: 'completed' },
-      { name: 'Forest Camp',         coord: [83.8400, 28.3500], elevation: '2,550m', status: 'completed' },
-      { name: 'Low Camp',            coord: [83.8550, 28.3950], elevation: '2,990m', status: 'current'   },
-      { name: 'High Camp',           coord: [83.8650, 28.4280], elevation: '3,580m', status: 'upcoming'  },
-      { name: 'Mardi Himal Base',    coord: [83.8720, 28.4550], elevation: '4,500m', status: 'upcoming'  },
-    ],
-    coordinates: [
-      [83.8167, 28.3111], [83.8280, 28.3300], [83.8400, 28.3500],
-      [83.8480, 28.3720], [83.8550, 28.3950], [83.8600, 28.4120],
-      [83.8650, 28.4280], [83.8685, 28.4420], [83.8720, 28.4550],
-    ],
-    osmTags: { highway: 'path', sac_scale: 'demanding_mountain_hiking', surface: 'dirt', trail_visibility: 'good' },
-    elevationProfile: [
-      { d: 0,    e: 1770 }, { d: 5,  e: 2200 }, { d: 10, e: 2550 },
-      { d: 15,   e: 2990 }, { d: 20, e: 3350 }, { d: 25, e: 3580 },
-      { d: 30,   e: 3920 }, { d: 35, e: 4500 },
-    ],
-    pois: [
-      { name: 'Kande Trailhead',    coord: [83.8167, 28.3111], type: 'junction'  },
-      { name: 'Forest Camp Lodge',  coord: [83.8400, 28.3500], type: 'lodge'     },
-      { name: 'Low Camp',           coord: [83.8550, 28.3950], type: 'lodge'     },
-      { name: 'High Camp',          coord: [83.8650, 28.4280], type: 'lodge'     },
-      { name: 'Mardi Himal Base',   coord: [83.8720, 28.4550], type: 'viewpoint' },
-      { name: 'Ridge Spring',       coord: [83.8480, 28.3720], type: 'water'     },
-    ],
-  },
-
-  // ──────────── Everest region ────────────
-  {
-    id: 'everest-base-camp',
-    name: 'Everest Base Camp Trek',
-    region: 'Sagarmatha National Park',
-    difficulty: 'Strenuous',
-    distance: '130 km',
-    duration: '12–14 days',
-    maxElevation: 5555,
-    elevationGain: '+2,695m',
-    startCoord: [86.7311, 27.6876],
-    center: [86.8500, 27.9500],
-    zoom: 10,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
-    description:
-      'The most iconic high-altitude trek on earth. Follows the Dudh Koshi valley through Sherpa villages, crosses suspension bridges into Namche, and climbs past Tengboche Monastery to Everest Base Camp (5,364m) at the foot of the Khumbu Icefall. Kala Patthar (5,555m) is the high point for the unobstructed Everest view.',
-    permits: ['Sagarmatha NP Permit (Rs. 3,000)', 'Khumbu Rural Municipality Permit (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–May',
-    waypoints: [
-      { name: 'Lukla',            coord: [86.7311, 27.6876], elevation: '2,860m', status: 'completed' },
-      { name: 'Phakding',         coord: [86.7130, 27.7430], elevation: '2,610m', status: 'completed' },
-      { name: 'Namche Bazaar',    coord: [86.7140, 27.8060], elevation: '3,440m', status: 'completed' },
-      { name: 'Tengboche',        coord: [86.7647, 27.8361], elevation: '3,867m', status: 'current'   },
-      { name: 'Dingboche',        coord: [86.8270, 27.8930], elevation: '4,410m', status: 'upcoming'  },
-      { name: 'Lobuche',          coord: [86.8105, 27.9493], elevation: '4,940m', status: 'upcoming'  },
-      { name: 'Gorak Shep',       coord: [86.8283, 27.9811], elevation: '5,164m', status: 'upcoming'  },
-      { name: 'Everest Base Camp',coord: [86.8515, 28.0025], elevation: '5,364m', status: 'upcoming'  },
-      { name: 'Kala Patthar',     coord: [86.8250, 27.9840], elevation: '5,555m', status: 'upcoming'  },
-    ],
-    coordinates: [
-      [86.7311, 27.6876], [86.7130, 27.7430], [86.7140, 27.8060],
-      [86.7647, 27.8361], [86.8270, 27.8930], [86.8105, 27.9493],
-      [86.8283, 27.9811], [86.8515, 28.0025],
-    ],
-    osmTags: { highway: 'path', sac_scale: 'alpine_hiking', surface: 'rock', trail_visibility: 'excellent' },
-    elevationProfile: [
-      { d: 0,   e: 2860 }, { d: 10, e: 2610 }, { d: 20, e: 3440 },
-      { d: 35,  e: 3867 }, { d: 50, e: 4410 }, { d: 65, e: 4940 },
-      { d: 80,  e: 5164 }, { d: 90, e: 5364 }, // EBC
-      { d: 95,  e: 5555 }, // Kala Patthar
-      { d: 130, e: 2860 }, // return
-    ],
-    pois: [
-      { name: 'Lukla Airport (2,860m)',     coord: [86.7311, 27.6876], type: 'junction'  },
-      { name: 'Namche Bazaar',              coord: [86.7140, 27.8060], type: 'lodge'     },
-      { name: 'Tengboche Monastery',        coord: [86.7647, 27.8361], type: 'viewpoint' },
-      { name: 'Dingboche (4,410m)',         coord: [86.8270, 27.8930], type: 'lodge'     },
-      { name: 'Lobuche (4,940m)',           coord: [86.8105, 27.9493], type: 'lodge'     },
-      { name: 'Gorak Shep',                coord: [86.8283, 27.9811], type: 'lodge'     },
-      { name: 'Everest Base Camp (5,364m)',  coord: [86.8515, 28.0025], type: 'viewpoint' },
-      { name: 'Kala Patthar (5,555m)',      coord: [86.8250, 27.9840], type: 'viewpoint' },
-      { name: 'Rescue Heli Pad (Namche)',   coord: [86.7140, 27.8060], type: 'rescue'    },
-      { name: 'Rescue Post (Dingboche)',    coord: [86.8270, 27.8930], type: 'rescue'    },
-    ],
-  },
-
-  // ──────────── Langtang region ────────────
+  // ─── 9. Langtang Valley Trek ────────────────────────────────────────────────
+  // All waypoints GPS-verified from WikiVoyage Langtang Valley Trek article (2026)
+  // Syabrubesi:    28.161783, 85.336451
+  // Bamboo:        28.154824, 85.399482
+  // Lama Hotel:    28.160805, 85.430305
+  // Ghoda Tabela:  28.200261, 85.460877
+  // Langtang V.:   28.215231, 85.508080
+  // Kyanjin Gompa: 28.211950, 85.566581
+  // Tserko Ri:     28.213494, 85.601026
   {
     id: 'langtang-valley',
     name: 'Langtang Valley Trek',
     region: 'Langtang National Park',
-    difficulty: 'Moderate',
-    distance: '65 km',
-    duration: '7–8 days',
-    maxElevation: 5000,
-    elevationGain: '+3,500m',
-    startCoord: [85.3617, 28.1575],
-    center: [85.4800, 28.2100],
-    zoom: 11,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
+    difficulty: 'Hard',
+    distance: '80 km',
+    duration: '7 days',
+    maxElevation: 4984,
+    elevationGain: '+3,524m',
+    startCoord: [85.3365, 28.1618],
+    center:     [85.4700, 28.1900],
+    zoom: 10,
     description:
-      '"The valley of glaciers" — Nepal\'s closest serious trek to Kathmandu. Follows the Langtang Khola through pine and rhododendron forest into a broad alpine valley surrounded by 7,000m peaks. Kyanjin Gompa is the last village; Tserko Ri (5,000m) is the optional high viewpoint.',
+      'The closest major Himalayan trek to Kathmandu — just 7–8 hours by bus. The trail follows the Langtang Khola river through subtropical jungle, bamboo forest, traditional Tamang villages, and glacial meadows to Kyanjin Gompa (3,870m). Optional summit hikes to Tserko Ri (4,984m) give jaw-dropping views of Langtang Lirung (7,227m) and the full Tibet border range.',
     permits: ['Langtang NP Permit (Rs. 3,000)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Mar–May',
+    bestSeason: 'Mar–May, Oct–Nov',
     waypoints: [
-      { name: 'Syabrubesi',       coord: [85.3617, 28.1575], elevation: '1,503m', status: 'completed' },
-      { name: 'Lama Hotel',       coord: [85.4333, 28.1900], elevation: '2,480m', status: 'completed' },
-      { name: 'Langtang Village', coord: [85.5000, 28.2100], elevation: '3,430m', status: 'current'   },
-      { name: 'Kyanjin Gompa',    coord: [85.5636, 28.2106], elevation: '3,870m', status: 'upcoming'  },
-      { name: 'Tserko Ri',        coord: [85.5950, 28.2250], elevation: '5,000m', status: 'upcoming'  },
+      { name: 'Syabrubesi',        coord: [85.3365, 28.1618], elevation: '1,460m' },
+      { name: 'Bamboo',            coord: [85.3995, 28.1548], elevation: '1,970m' },
+      { name: 'Lama Hotel',        coord: [85.4303, 28.1608], elevation: '2,470m' },
+      { name: 'Ghoda Tabela',      coord: [85.4609, 28.2003], elevation: '3,008m' },
+      { name: 'Langtang Village',  coord: [85.5081, 28.2152], elevation: '3,430m' },
+      { name: 'Kyanjin Gompa',     coord: [85.5666, 28.2120], elevation: '3,870m' },
+      { name: 'Tserko Ri (opt.)',  coord: [85.6010, 28.2135], elevation: '4,984m' },
     ],
     coordinates: [
-      [85.3617, 28.1575], [85.3950, 28.1750], [85.4333, 28.1900],
-      [85.4650, 28.2000], [85.5000, 28.2100], [85.5300, 28.2105],
-      [85.5636, 28.2106], [85.5800, 28.2180], [85.5950, 28.2250],
+      [85.3365, 28.1618], [85.3568, 28.1524], [85.3782, 28.1522],
+      [85.3995, 28.1548], [85.4217, 28.1581], [85.4303, 28.1608],
+      [85.4416, 28.1806], [85.4609, 28.2003], [85.4755, 28.2078],
+      [85.4960, 28.2143], [85.5081, 28.2152], [85.5197, 28.2151],
+      [85.5267, 28.2146], [85.5440, 28.2135], [85.5666, 28.2120],
     ],
-    osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'dirt', trail_visibility: 'excellent' },
+    osmTags: { highway: 'path', sac_scale: 'mountain_hiking', surface: 'rocky_trail', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,  e: 1503 }, { d: 8,  e: 2050 }, { d: 18, e: 2480 },
-      { d: 28, e: 3430 }, { d: 38, e: 3870 }, { d: 46, e: 4060 },
-      { d: 52, e: 5000 }, // Tserko Ri
-      { d: 58, e: 3870 }, // back to Kyanjin
-      { d: 65, e: 1503 }, // descent
+      { d: 0,  e: 1460 }, { d: 8,  e: 1970 }, { d: 14, e: 2470 },
+      { d: 22, e: 3008 }, { d: 28, e: 3430 }, { d: 33, e: 3550 },
+      { d: 40, e: 3870 }, { d: 49, e: 4984 },
+      { d: 56, e: 3870 }, { d: 62, e: 3430 }, { d: 66, e: 3008 },
+      { d: 72, e: 2470 }, { d: 80, e: 1460 },
     ],
     pois: [
-      { name: 'Syabrubesi (Start)',       coord: [85.3617, 28.1575], type: 'junction'  },
-      { name: 'Lama Hotel',               coord: [85.4333, 28.1900], type: 'lodge'     },
-      { name: 'Langtang Village (3,430m)',coord: [85.5000, 28.2100], type: 'lodge'     },
-      { name: 'Kyanjin Gompa',            coord: [85.5636, 28.2106], type: 'lodge'     },
-      { name: 'Tserko Ri (5,000m)',       coord: [85.5950, 28.2250], type: 'viewpoint' },
-      { name: 'Yala Peak BC',             coord: [85.5800, 28.2180], type: 'viewpoint' },
-      { name: 'River Crossing',           coord: [85.3950, 28.1750], type: 'water'     },
-      { name: 'Rescue Post (Kyanjin)',    coord: [85.5636, 28.2106], type: 'rescue'    },
+      { name: 'Syabrubesi Lodge',      coord: [85.3365, 28.1618], type: 'lodge'     },
+      { name: 'Bamboo Teahouse',       coord: [85.3995, 28.1548], type: 'lodge'     },
+      { name: 'Lama Hotel',            coord: [85.4303, 28.1608], type: 'lodge'     },
+      { name: 'Ghoda Tabela',          coord: [85.4609, 28.2003], type: 'lodge'     },
+      { name: 'Langtang Village',      coord: [85.5081, 28.2152], type: 'lodge'     },
+      { name: 'Kyanjin Gompa',         coord: [85.5666, 28.2120], type: 'viewpoint' },
+      { name: 'Kyanjin Ri (4,300m)',   coord: [85.5708, 28.2177], type: 'viewpoint' },
+      { name: 'Tserko Ri (4,984m)',    coord: [85.6010, 28.2135], type: 'viewpoint' },
+      { name: 'Langtang Khola River',  coord: [85.4416, 28.1806], type: 'water'     },
+      { name: 'Rescue Post',           coord: [85.4609, 28.2003], type: 'rescue'    },
     ],
   },
 
+  // ─── 10. Gosaikunda Lake Trek ────────────────────────────────────────────────
+  // Dhunche:       28.1058, 85.2835   (latitude.to confirmed: 28.1057876, 85.2835177)
+  // Sing Gompa:    28.1109, 85.3376   (latitude.to confirmed: 28.1108718, 85.337559)
+  // Gosaikunda:    28.0833, 85.4167   (Wikipedia: 28°05′N 85°25′E)
+  // Laurebina La:  28.0780, 85.4350   (~200m NE of lake, highest point 4,610m)
   {
     id: 'gosaikunda',
     name: 'Gosaikunda Lake Trek',
     region: 'Langtang National Park',
-    difficulty: 'Moderate',
+    difficulty: 'Hard',
     distance: '40 km',
     duration: '4–5 days',
     maxElevation: 4380,
     elevationGain: '+2,420m',
-    startCoord: [85.2950, 28.1150],
-    center: [85.4000, 28.0850],
+    startCoord: [85.2835, 28.1058],
+    center:     [85.3600, 28.0900],
     zoom: 11,
-    style: 'mapbox://styles/mapbox/outdoors-v12',
     description:
-      'A sacred Hindu pilgrimage lake at 4,380m, surrounded by 108 alpine tarns. The trek climbs steeply from Dhunche through Chandanbari (Sing Gompa) to the Laurebina ridge, crossing a series of frozen lakes to reach the main Gosaikunda shore.',
+      'A sacred Hindu pilgrimage lake at 4,380m, revered as the birthplace of Lord Shiva\'s trident spring. The trek climbs steeply from Dhunche (2,030m) through Chandanbari / Sing Gompa (3,330m) — famous for its cheese factory — along an exposed alpine ridge to Laurebina (3,910m) and a series of smaller tarns before the main Gosaikunda shore. Highest point: Laurebina La pass (4,610m) for those crossing to Helambu.',
     permits: ['Langtang NP Permit (Rs. 3,000)', 'TIMS Card (Rs. 2,000)'],
-    bestSeason: 'Oct–Nov, Apr–Jun',
+    bestSeason: 'Apr–Jun, Oct–Nov',
     waypoints: [
-      { name: 'Dhunche',          coord: [85.2950, 28.1150], elevation: '1,960m', status: 'completed' },
-      { name: 'Chandanbari',      coord: [85.3450, 28.0950], elevation: '3,330m', status: 'completed' },
-      { name: 'Cholang Pati',     coord: [85.3780, 28.0900], elevation: '3,580m', status: 'current'   },
-      { name: 'Laurebina',        coord: [85.3980, 28.0875], elevation: '3,920m', status: 'upcoming'  },
-      { name: 'Gosaikunda Lake',  coord: [85.4171, 28.0836], elevation: '4,380m', status: 'upcoming'  },
+      { name: 'Dhunche',             coord: [85.2835, 28.1058], elevation: '2,030m' },
+      { name: 'Sing Gompa / Chandanbari', coord: [85.3376, 28.1109], elevation: '3,330m' },
+      { name: 'Cholang Pati',        coord: [85.3750, 28.0920], elevation: '3,580m' },
+      { name: 'Laurebina',           coord: [85.3960, 28.0885], elevation: '3,910m' },
+      { name: 'Gosaikunda Lake',     coord: [85.4167, 28.0833], elevation: '4,380m' },
+      { name: 'Laurebina La Pass',   coord: [85.4280, 28.0790], elevation: '4,610m' },
     ],
     coordinates: [
-      [85.2950, 28.1150], [85.3200, 28.1050], [85.3450, 28.0950],
-      [85.3620, 28.0920], [85.3780, 28.0900], [85.3880, 28.0885],
-      [85.3980, 28.0875], [85.4080, 28.0855], [85.4171, 28.0836],
+      [85.2835, 28.1058], [85.3050, 28.1078], [85.3200, 28.1090],
+      [85.3376, 28.1109], [85.3520, 28.1060], [85.3620, 28.0990],
+      [85.3750, 28.0920], [85.3840, 28.0905], [85.3960, 28.0885],
+      [85.4060, 28.0858], [85.4167, 28.0833],
     ],
     osmTags: { highway: 'path', sac_scale: 'demanding_mountain_hiking', surface: 'rock', trail_visibility: 'good' },
     elevationProfile: [
-      { d: 0,  e: 1960 }, { d: 5,  e: 2600 }, { d: 12, e: 3330 },
-      { d: 18, e: 3580 }, { d: 23, e: 3920 }, { d: 28, e: 4130 },
-      { d: 32, e: 4380 }, // Gosaikunda Lake
-      { d: 40, e: 1960 }, // return
+      { d: 0,  e: 2030 }, { d: 4,  e: 2600 }, { d: 8,  e: 3050 },
+      { d: 12, e: 3330 }, { d: 16, e: 3580 }, { d: 20, e: 3760 },
+      { d: 24, e: 3910 }, { d: 28, e: 4130 }, { d: 32, e: 4380 },
+      { d: 40, e: 2030 },
     ],
     pois: [
-      { name: 'Dhunche Village',       coord: [85.2950, 28.1150], type: 'lodge'     },
-      { name: 'Chandanbari (Sing Gompa)', coord: [85.3450, 28.0950], type: 'lodge'     },
-      { name: 'Cholang Pati',          coord: [85.3780, 28.0900], type: 'lodge'     },
-      { name: 'Laurebina Pass (3,920m)', coord: [85.3980, 28.0875], type: 'viewpoint' },
-      { name: 'Gosaikunda Sacred Lake', coord: [85.4171, 28.0836], type: 'viewpoint' },
-      { name: 'Lake Shore Campsite',   coord: [85.4171, 28.0836], type: 'campsite'  },
-      { name: 'Stream (Chandanbari)',  coord: [85.3450, 28.0950], type: 'water'     },
+      { name: 'Dhunche Village',           coord: [85.2835, 28.1058], type: 'lodge'     },
+      { name: 'Sing Gompa Monastery',      coord: [85.3376, 28.1109], type: 'lodge'     },
+      { name: 'Cheese Factory',            coord: [85.3376, 28.1109], type: 'viewpoint' },
+      { name: 'Cholang Pati',              coord: [85.3750, 28.0920], type: 'lodge'     },
+      { name: 'Laurebina Viewpoint',       coord: [85.3960, 28.0885], type: 'viewpoint' },
+      { name: 'Gosaikunda Sacred Lake',    coord: [85.4167, 28.0833], type: 'viewpoint' },
+      { name: 'Lakeside Campsite',         coord: [85.4167, 28.0833], type: 'campsite'  },
+      { name: 'Laurebina La (4,610m)',     coord: [85.4280, 28.0790], type: 'viewpoint' },
+      { name: 'Sing Gompa Water',          coord: [85.3376, 28.1109], type: 'water'     },
+      { name: 'Rescue Post (Chandanbari)', coord: [85.3376, 28.1109], type: 'rescue'    },
     ],
   },
 ];
 
-// Backward-compat alias
 export const KATHMANDU_TRAILS = NEPAL_TRAILS;
 
-// Lookup helpers
-export const getTrailById    = (id)   => NEPAL_TRAILS.find(t => t.id === id);
-export const getTrailByName  = (name) => NEPAL_TRAILS.find(t => t.name === name);
-export const getDefaultTrail = ()     => NEPAL_TRAILS[0]; // Shivapuri
-
-// Filter helpers
-export const getDayHikes     = () => NEPAL_TRAILS.filter(t => /day|half/i.test(t.duration));
-export const getMultiDayTreks = () => NEPAL_TRAILS.filter(t => !/day|half/i.test(t.duration));
-export const getByDifficulty = (level) => NEPAL_TRAILS.filter(t => t.difficulty === level);
+export const getTrailById   = (id)   => NEPAL_TRAILS.find(t => t.id === id);
+export const getTrailByName = (name) => {
+  if (!name) return null;
+  const q = name.toLowerCase().trim();
+  return NEPAL_TRAILS.find(t => t.name.toLowerCase() === q)
+    || NEPAL_TRAILS.find(t => t.name.toLowerCase().includes(q))
+    || NEPAL_TRAILS.find(t => q.includes(t.name.toLowerCase().replace(/ trek$| trail$| hill$/, '')))
+    || NEPAL_TRAILS.find(t => {
+      const core = t.name.toLowerCase().replace(/ trek$| trail$| hill$/, '');
+      return q.startsWith(core) || core.startsWith(q);
+    });
+};
+export const getDefaultTrail  = () => NEPAL_TRAILS[0];
+export const getDayHikes      = () => NEPAL_TRAILS.filter(t => /day|half|hr/i.test(t.duration));
+export const getMultiDayTreks = () => NEPAL_TRAILS.filter(t => !/day|half|hr/i.test(t.duration));
+export const getByDifficulty  = (level) => NEPAL_TRAILS.filter(t => t.difficulty === level);

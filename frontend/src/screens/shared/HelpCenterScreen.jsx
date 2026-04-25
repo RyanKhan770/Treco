@@ -1,9 +1,10 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronDown, ChevronUp, Mail, MessageCircle, Globe, Book } from 'lucide-react-native';
+import { ArrowDown01Icon, ArrowUp01Icon, Mail01Icon, BubbleChatIcon, Globe02Icon, Book01Icon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
 import ScreenHeader from '../../components/ui/ScreenHeader';
@@ -94,21 +95,21 @@ export default function HelpCenterScreen({ navigation }) {
         {/* Quick contact */}
         <View style={styles.contactRow}>
           <ContactCard
-            Icon={Mail}
+            Icon={Mail01Icon}
             label="Email support"
             sub="Reply within 24 h"
             color="#457B9D"
             onPress={() => Linking.openURL('mailto:support@treco.app')}
           />
           <ContactCard
-            Icon={MessageCircle}
+            Icon={BubbleChatIcon}
             label="Community"
             sub="Forum & discussions"
             color="#40916C"
             onPress={() => Alert.alert('Coming soon', 'The community forum is launching soon!')}
           />
           <ContactCard
-            Icon={Globe}
+            Icon={Globe02Icon}
             label="Docs"
             sub="Full documentation"
             color="#8B5CF6"
@@ -136,8 +137,8 @@ export default function HelpCenterScreen({ navigation }) {
                     >
                       <Text style={styles.faqQText}>{item.q}</Text>
                       {isOpen
-                        ? <ChevronUp  size={16} color={colors.primary}   strokeWidth={2.5} />
-                        : <ChevronDown size={16} color={colors.textLight} strokeWidth={2} />
+                        ? <HugeiconsIcon icon={ArrowUp01Icon}  size={16} color={colors.primary}   strokeWidth={2.5} />
+                        : <HugeiconsIcon icon={ArrowDown01Icon} size={16} color={colors.textLight} strokeWidth={2} />
                       }
                     </TouchableOpacity>
                     {isOpen && (
@@ -153,7 +154,7 @@ export default function HelpCenterScreen({ navigation }) {
         ))}
 
         <View style={styles.footer}>
-          <Book size={14} color={colors.textLight} strokeWidth={2} />
+          <HugeiconsIcon icon={Book01Icon} size={14} color={colors.textLight} strokeWidth={2} />
           <Text style={styles.footerText}>Treco v1.0 · Nepal · support@treco.app</Text>
         </View>
       </ScrollView>
@@ -165,7 +166,7 @@ function ContactCard({ Icon, label, sub, color, onPress }) {
   return (
     <PressableScale style={styles.contactCard} onPress={onPress} scaleTo={0.95}>
       <View style={[styles.contactIcon, { backgroundColor: `${color}18` }]}>
-        <Icon size={20} color={color} strokeWidth={2} />
+        <HugeiconsIcon icon={Icon} size={20} color={color} strokeWidth={2} />
       </View>
       <Text style={styles.contactLabel}>{label}</Text>
       <Text style={styles.contactSub}>{sub}</Text>

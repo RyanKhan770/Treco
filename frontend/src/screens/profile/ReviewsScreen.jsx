@@ -1,164 +1,237 @@
-import React from 'react';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, SafeAreaView,
+  View, Text, StyleSheet, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StarIcon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
+import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { Card, FadeIn, SlideUp, Stagger } from '../../components/ui';
+import ScreenHeader from '../../components/ui/ScreenHeader';
+import { reviewsAPI } from '../../services/api';
 
-const reviews = [
-  { id: '1', name: 'Priya Thapa', trek: 'Langtang Trek', date: 'Dec 2025', rating: 5, comment: 'Amazing trek partner! Very helpful and experienced. Would trek again!' },
-  { id: '2', name: 'Suman KC', trek: 'EBC Trek', date: 'Nov 2025', rating: 5, comment: 'Great leader, always kept the group motivated and safe. Highly recommend!' },
-  { id: '3', name: 'Anita Rai', trek: 'Poon Hill', date: 'Oct 2025', rating: 4, comment: 'Good experience overall, very punctual.' },
-];
+const AVATAR_COLORS = ['#40916C', '#457B9D', '#E76F51', '#6B4423', '#52B788', '#8B5CF6'];
+function avatarColor(str = '') {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
 
-const ratingBreakdown = [
-  { label: 'Reliability', score: 4.9 },
-  { label: 'Cooperation', score: 5.0 },
-  { label: 'Experience', score: 4.8 },
-];
+const Stars = ({ value, size = 13 }) => (
+  <View style={{ flexDirection: 'row', gap: 1 }}>
+    {[1, 2, 3, 4, 5].map((i) => (
+      <HugeiconsIcon icon={StarIcon}
+        key={i} size={size}
+        color={i <= value ? colors.warning : colors.border}
+        fill={i <= value ? colors.warning : 'transparent'}
+        strokeWidth={2}
+      />
+    ))}
+  </View>
+);
 
 const ReviewsScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const name = user?.fullName || 'Ryan Khan';
-  const initial = name[0]?.toUpperCase() || 'R';
-  const avgRating = 4.9;
+  const [tab, setTab] = useState('received');
+  const [reviews, setReviews]       = useState([]);
+  const [givenReviews, setGivenReviews] = useState([]);
+  const [stats, setStats]           = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [loadingGiven, setLoadingGiven] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    reviewsAPI.getUserReviews(user.id)
+      .then(r => { setReviews(r.data.reviews || []); setStats(r.data.stats || null); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+
+    reviewsAPI.getReviewsBy(user.id)
+      .then(r => setGivenReviews(r.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingGiven(false));
+  }, [user?.id]);
+
+  const name    = user?.name || 'Trekker';
+  const initial = name[0]?.toUpperCase() || 'T';
+  const avgRating = stats?.avg_overall ? Number(stats.avg_overall).toFixed(1) : '—';
+  const total     = stats?.total ? Number(stats.total) : 0;
+
+  const breakdown = [
+    { label: 'Reliability',  score: stats?.avg_reliability  ? Number(stats.avg_reliability).toFixed(1)  : null },
+    { label: 'Cooperation',  score: stats?.avg_cooperation  ? Number(stats.avg_cooperation).toFixed(1)  : null },
+    { label: 'Experience',   score: stats?.avg_experience   ? Number(stats.avg_experience).toFixed(1)   : null },
+  ];
+
+  const currentReviews = tab === 'received' ? reviews : givenReviews;
+  const isLoading = tab === 'received' ? loading : loadingGiven;
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>←</Text>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <ScreenHeader title="My Reviews" subtitle="Feedback" onBack={() => navigation.goBack()} />
+
+      {/* ── Tab bar ── */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'received' && styles.tabActive]}
+          onPress={() => setTab('received')}
+        >
+          <Text style={[styles.tabText, tab === 'received' && styles.tabTextActive]}>
+            Received ({reviews.length})
+          </Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Reviews</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={[styles.tab, tab === 'given' && styles.tabActive]}
+          onPress={() => setTab('given')}
+        >
+          <Text style={[styles.tabText, tab === 'given' && styles.tabTextActive]}>
+            Given ({givenReviews.length})
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* User summary */}
-        <View style={styles.summary}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-          <View style={styles.summaryInfo}>
-            <Text style={styles.summaryName}>{name}</Text>
-            <Text style={styles.summaryTreks}>{reviews.length * 5} treks completed</Text>
-          </View>
-          <View style={styles.ratingBox}>
-            <Text style={styles.ratingBig}>{avgRating}</Text>
-            <Text style={styles.ratingStars}>{'★'.repeat(5)}</Text>
-          </View>
+      {isLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, paddingBottom: 80 }}>
 
-        {/* Rating breakdown */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Rating Breakdown</Text>
-          {ratingBreakdown.map((r) => (
-            <View key={r.label} style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>{r.label}</Text>
-              <View style={styles.barContainer}>
-                <View style={[styles.bar, { width: `${(r.score / 5) * 100}%` }]} />
-              </View>
-              <Text style={styles.breakdownScore}>{r.score}</Text>
-            </View>
-          ))}
-        </View>
+          {/* Summary card — only on Received tab */}
+          {tab === 'received' && (
+            <>
+              <SlideUp delay={100}>
+                <Card style={styles.summary} elevation="md">
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.summaryName}>{name}</Text>
+                    <Text style={styles.summaryTreks}>{total} review{total !== 1 ? 's' : ''} received</Text>
+                  </View>
+                  <View style={styles.ratingBox}>
+                    <Text style={styles.ratingBig}>{avgRating}</Text>
+                    <Stars value={Math.round(Number(stats?.avg_overall || 0))} size={12} />
+                  </View>
+                </Card>
+              </SlideUp>
 
-        {/* Reviews list */}
-        <Text style={styles.recentTitle}>Recent Reviews ({reviews.length})</Text>
-        {reviews.map((r) => (
-          <View key={r.id} style={styles.reviewCard}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewAvatar}>
-                <Text style={styles.reviewAvatarText}>{r.name[0]}</Text>
+              {stats && (
+                <SlideUp delay={160}>
+                  <Card style={{ marginBottom: spacing.md }}>
+                    <Text style={styles.section}>Rating breakdown</Text>
+                    {breakdown.map((r) => r.score && (
+                      <View key={r.label} style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>{r.label}</Text>
+                        <View style={styles.barContainer}>
+                          <View style={[styles.bar, { width: `${(Number(r.score) / 5) * 100}%` }]} />
+                        </View>
+                        <Text style={styles.breakdownScore}>{r.score}</Text>
+                      </View>
+                    ))}
+                  </Card>
+                </SlideUp>
+              )}
+            </>
+          )}
+
+          {/* Review cards */}
+          {currentReviews.length > 0 ? (
+            <>
+              <Text style={styles.section}>
+                {tab === 'received' ? `Recent reviews · ${currentReviews.length}` : `Reviews you wrote · ${currentReviews.length}`}
+              </Text>
+              <Stagger initialDelay={200} step={40} distance={14}>
+                {currentReviews.map((r) => {
+                  const personName = tab === 'received'
+                    ? (r.reviewer_name || 'Trekker')
+                    : (r.reviewed_name || 'Trekker');
+                  const personPhoto = tab === 'received' ? r.reviewer_photo : r.reviewed_photo;
+                  return (
+                    <Card key={r.id} style={{ marginBottom: spacing.sm }}>
+                      <View style={styles.reviewHeader}>
+                        <View style={[styles.reviewAvatar, { backgroundColor: avatarColor(personName) }]}>
+                          <Text style={styles.reviewAvatarText}>{personName[0]}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.reviewName}>
+                            {tab === 'received' ? personName : `To: ${personName}`}
+                          </Text>
+                          <Text style={styles.reviewDate}>
+                            {r.group_name ? `${r.group_name} · ` : ''}
+                            {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                          </Text>
+                        </View>
+                        <Stars value={Math.round(Number(r.overall_rating || 0))} />
+                      </View>
+                      {!!r.comment && <Text style={styles.reviewComment}>{r.comment}</Text>}
+                    </Card>
+                  );
+                })}
+              </Stagger>
+            </>
+          ) : (
+            <FadeIn>
+              <View style={styles.empty}>
+                <HugeiconsIcon icon={StarIcon} size={40} color={colors.border} strokeWidth={1.5} />
+                <Text style={styles.emptyText}>
+                  {tab === 'received' ? 'No reviews yet' : 'You haven\'t written any reviews'}
+                </Text>
+                <Text style={styles.emptySub}>
+                  {tab === 'received'
+                    ? 'Complete trips with groups to receive reviews from fellow trekkers.'
+                    : 'Rate your fellow trekkers after completing a group trip.'}
+                </Text>
               </View>
-              <View style={styles.reviewMeta}>
-                <Text style={styles.reviewName}>{r.name}</Text>
-                <Text style={styles.reviewTrek}>{r.trek} • {r.date}</Text>
-              </View>
-              <Text style={styles.reviewStars}>{'★'.repeat(r.rating)}</Text>
-            </View>
-            <Text style={styles.reviewComment}>{r.comment}</Text>
-          </View>
-        ))}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+            </FadeIn>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  safe:    { flex: 1, backgroundColor: colors.background },
+  centered:{ flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  tabBar: {
+    flexDirection: 'row', paddingHorizontal: spacing.md,
+    gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.xs,
   },
-  back: { fontSize: 22, color: colors.textPrimary },
-  title: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  summary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    margin: 16,
-    borderRadius: 16,
-    padding: 16,
-    elevation: 2,
+  tab: {
+    flex: 1, paddingVertical: spacing.sm, borderRadius: radius.lg,
+    alignItems: 'center', backgroundColor: colors.surface,
   },
-  avatar: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: { color: colors.white, fontSize: 20, fontWeight: '700' },
-  summaryInfo: { flex: 1 },
-  summaryName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  summaryTreks: { fontSize: 12, color: colors.textSecondary },
-  ratingBox: { alignItems: 'center' },
-  ratingBig: { fontSize: 24, fontWeight: '700', color: colors.textPrimary },
-  ratingStars: { fontSize: 12, color: colors.warning },
-  card: {
-    backgroundColor: colors.white,
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 1,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: 12 },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  breakdownLabel: { width: 90, fontSize: 13, color: colors.textSecondary },
-  barContainer: { flex: 1, height: 6, backgroundColor: colors.border, borderRadius: 3, marginHorizontal: 10, overflow: 'hidden' },
-  bar: { height: '100%', backgroundColor: colors.primary, borderRadius: 3 },
-  breakdownScore: { width: 32, fontSize: 13, color: colors.textPrimary, fontWeight: '600', textAlign: 'right' },
-  recentTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginHorizontal: 16, marginBottom: 8 },
-  reviewCard: {
-    backgroundColor: colors.white,
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    elevation: 1,
-  },
-  reviewHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  reviewAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 10,
-  },
-  reviewAvatarText: { color: colors.white, fontSize: 14, fontWeight: '700' },
-  reviewMeta: { flex: 1 },
-  reviewName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  reviewTrek: { fontSize: 12, color: colors.textMuted },
-  reviewStars: { fontSize: 14, color: colors.warning },
-  reviewComment: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
+  tabActive: { backgroundColor: colors.primary },
+  tabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semiBold, color: colors.textSecondary },
+  tabTextActive: { color: '#fff' },
+
+  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  avatar:  { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontSize: fontSize.xl, fontWeight: fontWeight.bold },
+  summaryName: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.text },
+  summaryTreks:{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  ratingBox:   { alignItems: 'flex-end', gap: 3 },
+  ratingBig:   { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text, letterSpacing: -0.5 },
+  section: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryLight, letterSpacing: 2, textTransform: 'uppercase', marginBottom: spacing.sm },
+  breakdownRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  breakdownLabel: { width: 100, fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.medium },
+  barContainer:   { flex: 1, height: 6, backgroundColor: colors.surface, borderRadius: 3, marginHorizontal: 10, overflow: 'hidden' },
+  bar:            { height: '100%', backgroundColor: colors.primary, borderRadius: 3 },
+  breakdownScore: { width: 32, fontSize: fontSize.xs, color: colors.text, fontWeight: fontWeight.bold, textAlign: 'right' },
+  reviewHeader:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 8 },
+  reviewAvatar:   { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  reviewAvatarText: { color: '#fff', fontSize: fontSize.md, fontWeight: fontWeight.bold },
+  reviewName:  { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.text },
+  reviewDate:  { fontSize: fontSize.xs, color: colors.textLight, marginTop: 1 },
+  reviewComment: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
+  empty:     { alignItems: 'center', paddingTop: 60, gap: 12 },
+  emptyText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textSecondary },
+  emptySub:  { fontSize: fontSize.sm, color: colors.textLight, textAlign: 'center', maxWidth: 260, lineHeight: 20 },
 });
 
 export default ReviewsScreen;

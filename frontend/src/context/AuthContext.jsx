@@ -1,45 +1,32 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logout as logoutAction, hydrate, triggerSessionExpired } from '../store/slices/authSlice';
+import { onSessionExpired } from '../utils/sessionEvents';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const { user, token, loading } = useSelector((state) => state.auth);
 
+  // Register the session-expired handler once.
+  // The axios interceptor calls emitSessionExpired() when a refresh token fails,
+  // which triggers this → shows the SessionExpiredModal overlay without losing
+  // the navigation stack.
   useEffect(() => {
-    loadStoredAuth();
-  }, []);
+    onSessionExpired(() => {
+      dispatch(triggerSessionExpired());
+    });
+  }, [dispatch]);
 
-  const loadStoredAuth = async () => {
-    try {
-      const storedToken = await AsyncStorage.getItem('token');
-      const storedUser = await AsyncStorage.getItem('user');
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (userData, authToken) => {
-    setUser(userData);
-    setToken(authToken);
+  const login = async (userData, authToken, refreshToken) => {
     await AsyncStorage.setItem('token', authToken);
-    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    if (refreshToken) await AsyncStorage.setItem('refreshToken', refreshToken);
+    dispatch(hydrate({ user: userData, token: authToken }));
   };
 
-  const logout = async () => {
-    setUser(null);
-    setToken(null);
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
-  };
+  const logout = () => dispatch(logoutAction());
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout }}>

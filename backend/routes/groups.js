@@ -2,12 +2,13 @@ const express = require('express');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
 // GET /api/groups
 router.get('/', auth, async (req, res) => {
-  const { status, trail_id } = req.query;
+  const { status, trail_id, search } = req.query;
   let query = `
     SELECT g.*, t.name AS trail_name, t.difficulty,
            u.name AS leader_name, u.profile_photo AS leader_photo
@@ -18,8 +19,9 @@ router.get('/', auth, async (req, res) => {
   `;
   const params = [];
   let idx = 1;
-  if (status) { query += ` AND g.status = $${idx++}`; params.push(status); }
-  if (trail_id) { query += ` AND g.trail_id = $${idx++}`; params.push(trail_id); }
+  if (status)   { query += ` AND g.status = $${idx++}`;                                             params.push(status); }
+  if (trail_id) { query += ` AND g.trail_id = $${idx++}`;                                           params.push(trail_id); }
+  if (search)   { query += ` AND (g.name ILIKE $${idx} OR t.name ILIKE $${idx++})`; params.push(`%${search}%`); }
   query += ' ORDER BY g.created_at DESC';
   try {
     const result = await pool.query(query, params);
@@ -79,14 +81,24 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// POST /api/groups — organizer or admin
+// POST /api/groups — organizer or admin only
 router.post('/', auth, requireRole('organizer', 'admin'), async (req, res) => {
-  const { name, description, trail_id, start_date, end_date, meeting_point, max_members, budget_estimate } = req.body;
+  const { name, description, trail_id, trail_name, start_date, end_date, meeting_point, max_members, budget_estimate } = req.body;
+  if (!name?.trim()) return res.status(400).json({ message: 'Trip name is required' });
   try {
+    let resolvedTrailId = trail_id || null;
+    if (!resolvedTrailId && trail_name) {
+      const trailRes = await pool.query('SELECT id FROM trails WHERE LOWER(name) = LOWER($1)', [trail_name]);
+      if (trailRes.rows.length > 0) resolvedTrailId = trailRes.rows[0].id;
+    }
+    // Normalise optional dates — empty strings become null
+    const safeDate = (v) => (v && v.trim() ? v.trim() : null);
     const result = await pool.query(
       `INSERT INTO groups (name, description, trail_id, leader_id, start_date, end_date, meeting_point, max_members, budget_estimate)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [name, description, trail_id, req.user.id, start_date, end_date, meeting_point, max_members || 10, budget_estimate]
+      [name.trim(), description || null, resolvedTrailId, req.user.id,
+       safeDate(start_date), safeDate(end_date), meeting_point || null,
+       max_members || 10, budget_estimate || null]
     );
     const group = result.rows[0];
     // Leader auto-joins as organizer
@@ -96,8 +108,8 @@ router.post('/', auth, requireRole('organizer', 'admin'), async (req, res) => {
     );
     res.status(201).json(group);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Group creation error:', err);
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -238,6 +250,28 @@ router.delete('/:id/leave', auth, async (req, res) => {
       [req.params.id]
     );
     res.json({ message: 'Left group' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/groups/:id/photo
+router.post('/:id/photo', auth, upload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+  const photoUrl = `/uploads/${req.file.filename}`;
+  try {
+    const groupCheck = await pool.query('SELECT leader_id FROM groups WHERE id = $1', [req.params.id]);
+    if (groupCheck.rows.length === 0) return res.status(404).json({ message: 'Group not found' });
+    if (groupCheck.rows[0].leader_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only the group leader can update the photo' });
+    }
+    
+    await pool.query(
+      `UPDATE groups SET group_photo = $1, updated_at = NOW() WHERE id = $2`,
+      [photoUrl, req.params.id]
+    );
+    res.json({ group_photo: photoUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

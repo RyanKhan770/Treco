@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { groupsAPI } from '../services/api';
+import { adminAPI } from '../services/api';
 import DataTable from '../components/DataTable';
 
 const STATUS_COLORS = {
@@ -13,12 +13,31 @@ export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    groupsAPI.getAll()
+  const load = () => {
+    setLoading(true);
+    adminAPI.getGroups()
       .then((res) => setGroups(res.data))
       .catch(() => setGroups([]))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
+
+  const handleClose = async (id, name) => {
+    if (!window.confirm(`Close group "${name}"? Members will no longer be able to join.`)) return;
+    try {
+      await adminAPI.closeGroup(id);
+      setGroups((prev) => prev.map((g) => g.id === id ? { ...g, status: 'closed' } : g));
+    } catch { alert('Failed to close group'); }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Permanently delete group "${name}"? This cannot be undone.`)) return;
+    try {
+      await adminAPI.deleteGroup(id);
+      setGroups((prev) => prev.filter((g) => g.id !== id));
+    } catch { alert('Failed to delete group'); }
+  };
 
   const filtered = groups.filter((g) =>
     g.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -60,6 +79,27 @@ export default function GroupsPage() {
     {
       key: 'budget_estimate', label: 'Budget (NPR)',
       render: (val) => val ? `NPR ${Number(val).toLocaleString()}` : '—',
+    },
+    {
+      key: 'id', label: 'Actions',
+      render: (id, row) => (
+        <div className="flex gap-2">
+          {row.status !== 'closed' && (
+            <button
+              onClick={() => handleClose(id, row.name)}
+              className="text-xs text-amber-600 hover:text-amber-800 font-medium px-2 py-1 rounded-lg hover:bg-amber-50 transition"
+            >
+              Close
+            </button>
+          )}
+          <button
+            onClick={() => handleDelete(id, row.name)}
+            className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 

@@ -1,11 +1,10 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Switch, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Globe, Users, MapPin, BarChart2, Bell, Eye, Trash2,
-} from 'lucide-react-native';
+import { Globe02Icon, UserGroupIcon, MapPinIcon, ChartHistogramIcon, Notification01Icon, ViewIcon, Delete02Icon } from '@hugeicons/core-free-icons';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
 import ScreenHeader from '../../components/ui/ScreenHeader';
@@ -40,7 +39,7 @@ export default function PrivacyScreen({ navigation }) {
       >
         <Section label="Profile visibility">
           <ToggleRow
-            Icon={Globe}
+            Icon={Globe02Icon}
             color="#457B9D"
             title="Public profile"
             sub="Anyone can see your profile, bio, and completed trails."
@@ -48,7 +47,7 @@ export default function PrivacyScreen({ navigation }) {
             onChange={setPublicProfile}
           />
           <ToggleRow
-            Icon={Users}
+            Icon={UserGroupIcon}
             color="#40916C"
             title="Show activity to followers"
             sub="Followers can see your recent hikes and treks."
@@ -56,7 +55,7 @@ export default function PrivacyScreen({ navigation }) {
             onChange={setActivityVisible}
           />
           <ToggleRow
-            Icon={Eye}
+            Icon={ViewIcon}
             color="#8B5CF6"
             title="Show on leaderboard"
             sub="Appear in regional distance and summit leaderboards."
@@ -68,7 +67,7 @@ export default function PrivacyScreen({ navigation }) {
 
         <Section label="Location & data">
           <ToggleRow
-            Icon={MapPin}
+            Icon={MapPinIcon}
             color="#E76F51"
             title="Live location sharing"
             sub="Share your real-time GPS position with trusted trekking partners during active treks."
@@ -76,7 +75,7 @@ export default function PrivacyScreen({ navigation }) {
             onChange={setLocationShare}
           />
           <ToggleRow
-            Icon={BarChart2}
+            Icon={ChartHistogramIcon}
             color="#52B788"
             title="Usage analytics"
             sub="Help improve Treco by sharing anonymised usage patterns."
@@ -88,7 +87,7 @@ export default function PrivacyScreen({ navigation }) {
 
         <Section label="Communications">
           <ToggleRow
-            Icon={Bell}
+            Icon={Notification01Icon}
             color="#F59E0B"
             title="Marketing emails"
             sub="Receive trail recommendations, new features, and Treco news."
@@ -113,7 +112,7 @@ export default function PrivacyScreen({ navigation }) {
 
         {/* Delete account */}
         <PressableScale style={styles.deleteBtn} onPress={handleDeleteAccount} scaleTo={0.97}>
-          <Trash2 size={16} color={colors.danger} strokeWidth={2.25} />
+          <HugeiconsIcon icon={Delete02Icon} size={16} color={colors.danger} strokeWidth={2.25} />
           <Text style={styles.deleteBtnText}>Delete my account</Text>
         </PressableScale>
 
@@ -139,7 +138,7 @@ function ToggleRow({ Icon, color, title, sub, value, onChange, isLast }) {
   return (
     <View style={[styles.row, !isLast && styles.rowDivider]}>
       <View style={[styles.rowIcon, { backgroundColor: `${color}22` }]}>
-        <Icon size={16} color={color} strokeWidth={2.25} />
+        <HugeiconsIcon icon={Icon} size={16} color={color} strokeWidth={2.25} />
       </View>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle}>{title}</Text>

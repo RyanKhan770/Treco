@@ -1,20 +1,40 @@
+import 'react-native-gesture-handler';
+import { useSelector } from 'react-redux';
+import { Provider } from 'react-redux';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
+import store from './src/store/store';
+import { AuthProvider } from './src/context/AuthContext';
+import AppNavigator from './src/navigation/AppNavigator';
+import SessionExpiredModal from './src/components/SessionExpiredModal';
 
-export default function App() {
+// Initialize Mapbox only in dev builds (not Expo Go)
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+if (!isExpoGo) {
+  const MapboxGL = require('@rnmapbox/maps').default;
+  MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '');
+}
+
+function AppWithSession() {
+  const isSessionExpired = useSelector((state) => state.auth.isSessionExpired);
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <StatusBar style="light" />
+      <AppNavigator />
+      {isSessionExpired && <SessionExpiredModal />}
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <AuthProvider>
+          <AppWithSession />
+        </AuthProvider>
+      </Provider>
+    </GestureHandlerRootView>
+  );
+}

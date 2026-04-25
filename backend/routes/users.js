@@ -13,9 +13,10 @@ router.get('/organizers', auth, async (req, res) => {
       `SELECT id, name, profile_photo, bio, overall_rating, total_treks,
               total_groups, experience_level, location, is_verified
        FROM users
-       WHERE role IN ('organizer', 'admin')
+       WHERE role IN ('organizer', 'admin') AND id != $1
        ORDER BY overall_rating DESC NULLS LAST, total_treks DESC NULLS LAST
-       LIMIT 30`
+       LIMIT 30`,
+      [req.user.id]
     );
     res.json(result.rows);
   } catch (err) {
@@ -83,6 +84,28 @@ router.put('/me', auth, async (req, res) => {
   }
 });
 
+// POST /api/users/verify-request
+router.post('/verify-request', auth, async (req, res) => {
+  const { phone, document_type, document_number } = req.body;
+  if (!document_type || !document_number)
+    return res.status(400).json({ message: 'Document type and number are required' });
+  try {
+    await pool.query(
+      `UPDATE users SET
+         phone = COALESCE($1, phone),
+         verification_status = 'pending',
+         government_id_url = $2,
+         updated_at = NOW()
+       WHERE id = $3`,
+      [phone || null, `${document_type}:${document_number}`, req.user.id],
+    );
+    res.json({ message: 'Verification request submitted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/users/me/photo
 router.post('/me/photo', auth, upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -90,6 +113,22 @@ router.post('/me/photo', auth, upload.single('photo'), async (req, res) => {
   try {
     await pool.query('UPDATE users SET profile_photo = $1 WHERE id = $2', [photoUrl, req.user.id]);
     res.json({ profile_photo: photoUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/users/me/govid
+router.post('/me/govid', auth, upload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+  const fileUrl = `/uploads/${req.file.filename}`;
+  try {
+    await pool.query(
+      `UPDATE users SET government_id_url = $1, verification_status = 'pending', updated_at = NOW() WHERE id = $2`,
+      [fileUrl, req.user.id]
+    );
+    res.json({ government_id_url: fileUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

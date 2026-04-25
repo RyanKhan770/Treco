@@ -10,6 +10,13 @@ router.post('/', auth, async (req, res) => {
   const { reported_user_id, group_id, reason, description } = req.body;
   if (!reason) return res.status(400).json({ message: 'Reason is required' });
   try {
+    // Prevent reporting admins/organizers
+    if (reported_user_id) {
+      const target = await pool.query('SELECT role FROM users WHERE id = $1', [reported_user_id]);
+      if (target.rows.length > 0 && ['admin', 'organizer'].includes(target.rows[0].role)) {
+        return res.status(403).json({ message: 'Cannot report admin or organizer users. Contact support instead.' });
+      }
+    }
     const result = await pool.query(
       `INSERT INTO reports (reporter_id, reported_user_id, group_id, reason, description)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,

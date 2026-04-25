@@ -43,4 +43,18 @@ router.delete('/clear', auth, async (req, res) => {
   }
 });
 
+// GET /api/notifications/unread-count
+router.get('/unread-count', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT COUNT(*) AS count FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+      [req.user.id]
+    );
+    res.json({ count: parseInt(result.rows[0].count, 10) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

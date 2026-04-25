@@ -1,17 +1,33 @@
-import React, { useState } from 'react';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, SafeAreaView, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TextInput, StatusBar, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MountainIcon, Calendar01Icon, UserGroupIcon, Wallet02Icon, TextIcon, ArrowDown01Icon, Tick01Icon, PlusSignIcon, Award01Icon } from '@hugeicons/core-free-icons';
+import { useDispatch } from 'react-redux';
 import { colors } from '../../constants/colors';
+import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
+import {
+  Button, Card, Input, PressableScale, SlideUp, Stagger,
+} from '../../components/ui';
+import ScreenHeader from '../../components/ui/ScreenHeader';
+import { NEPAL_TRAILS } from '../../constants/kathmandu_trails';
+import { groupsAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { loadUser } from '../../store/slices/authSlice';
 
-const trails = [
-  'Annapurna Base Camp', 'Poon Hill Trek', 'Everest Base Camp',
-  'Langtang Valley Trek', 'Mardi Himal Trek', 'Shivapuri Day Hike',
-  'Nagarkot Sunrise Hike', 'Manaslu Circuit',
-];
+const TRAIL_NAMES = NEPAL_TRAILS.map((t) => t.name);
 
 const CreateTripScreen = ({ navigation }) => {
+  const { user } = useAuth();
+  const dispatch = useDispatch();
+
+  // Refresh auth state on mount so the role gate reflects the latest DB role.
+  useEffect(() => { dispatch(loadUser()); }, []);
+
+  const isOrganizer = user?.role === 'organizer' || user?.role === 'admin';
+
   const [form, setForm] = useState({
     tripName: '', trail: '', startDate: '', endDate: '',
     groupSize: '', budget: '', description: '',
@@ -19,168 +35,224 @@ const CreateTripScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showTrailPicker, setShowTrailPicker] = useState(false);
 
+  if (!isOrganizer) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+        <ScreenHeader title="Create Trip" onBack={() => navigation.goBack()} />
+        <View style={styles.gateWrap}>
+          <HugeiconsIcon icon={Award01Icon} size={56} color={colors.primaryLight} strokeWidth={1.5} />
+          <Text style={styles.gateTitle}>Organizer Role Required</Text>
+          <Text style={styles.gateSub}>
+            Creating group trips is limited to verified Group Managers. Apply to become an organizer to unlock this feature.
+          </Text>
+          <Button
+            label="Apply to Become an Organizer"
+            icon={Award01Icon}
+            onPress={() => navigation.navigate('OrganizerRequest')}
+            fullWidth
+            style={{ marginTop: spacing.xl }}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const update = (f, v) => setForm((p) => ({ ...p, [f]: v }));
 
   const handleCreate = async () => {
     if (!form.tripName || !form.trail || !form.startDate) {
-      Alert.alert('Error', 'Please fill in trip name, trail, and start date.'); return;
+      Alert.alert('Missing info', 'Please fill in trip name, trail, and start date.');
+      return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert('Success', 'Your trip has been created!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+    try {
+      const res = await groupsAPI.create({
+        name:           form.tripName,
+        trail_name:     form.trail,
+        start_date:     form.startDate || null,
+        end_date:       form.endDate   || null,
+        max_members:    form.groupSize  ? parseInt(form.groupSize)   : 10,
+        budget_estimate: form.budget   ? parseFloat(form.budget)    : null,
+        description:    form.description || null,
+      });
+      const groupId = res.data?.id;
+      Alert.alert('Trip created', 'Your trip has been published to the community.', [
+        { text: 'OK', onPress: () => {
+            if (groupId) {
+              navigation.replace('Chat', { groupId, groupName: form.tripName });
+            } else {
+              navigation.goBack();
+            }
+          }
+        },
       ]);
-    }, 1200);
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || 'Could not create trip. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Create Trip</Text>
-        <View style={{ width: 60 }} />
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <ScreenHeader
+        title="Create Trip"
+        subtitle="New adventure"
+        onBack={() => navigation.goBack()}
+      />
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <Field label="Trip Name" placeholder="e.g., Everest Base Camp Adventure"
-          value={form.tripName} onChangeText={(v) => update('tripName', v)} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xxl }}>
+        <Stagger initialDelay={100} step={40} distance={14}>
+          <Input
+            label="Trip name"
+            leading={<HugeiconsIcon icon={TextIcon} size={18} color={colors.textSecondary} strokeWidth={2.25} />}
+            placeholder="e.g. EBC Adventure 2026"
+            value={form.tripName}
+            onChangeText={(v) => update('tripName', v)}
+          />
 
-        <Text style={styles.label}>Select Trail</Text>
-        <TouchableOpacity style={styles.trailPicker} onPress={() => setShowTrailPicker(!showTrailPicker)}>
-          <Text style={[styles.trailPickerText, !form.trail && { color: colors.textMuted }]}>
-            {form.trail || 'Search or select a trail'}
-          </Text>
-          <Text style={styles.chevron}>▼</Text>
-        </TouchableOpacity>
-        {showTrailPicker && (
-          <View style={styles.trailDropdown}>
-            {trails.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={styles.trailOption}
-                onPress={() => { update('trail', t); setShowTrailPicker(false); }}
-              >
-                <Text style={styles.trailOptionText}>{t}</Text>
-              </TouchableOpacity>
-            ))}
+          <Text style={styles.label}>Trail</Text>
+          <PressableScale
+            style={styles.picker}
+            onPress={() => setShowTrailPicker((s) => !s)}
+            scaleTo={0.98}
+          >
+            <HugeiconsIcon icon={MountainIcon} size={18} color={colors.textSecondary} strokeWidth={2.25} />
+            <Text style={[styles.pickerText, !form.trail && { color: colors.textMuted }]}>
+              {form.trail || 'Search or select a trail'}
+            </Text>
+            <HugeiconsIcon icon={ArrowDown01Icon} size={18} color={colors.textLight} strokeWidth={2.25} />
+          </PressableScale>
+
+          {showTrailPicker && (
+            <SlideUp>
+              <Card style={{ marginTop: -spacing.sm, marginBottom: spacing.md }} padding={0}>
+                {TRAIL_NAMES.map((t, i) => {
+                  const active = form.trail === t;
+                  return (
+                    <PressableScale
+                      key={t}
+                      style={[styles.trailOption, i < TRAIL_NAMES.length - 1 && styles.trailDivider]}
+                      onPress={() => { update('trail', t); setShowTrailPicker(false); }}
+                      scaleTo={0.99}
+                    >
+                      <Text style={[styles.trailOptionText, active && { color: colors.primary, fontWeight: fontWeight.bold }]}>{t}</Text>
+                      {active && <HugeiconsIcon icon={Tick01Icon} size={16} color={colors.primary} strokeWidth={2.5} />}
+                    </PressableScale>
+                  );
+                })}
+              </Card>
+            </SlideUp>
+          )}
+
+          <Text style={styles.label}>Date range</Text>
+          <View style={styles.dateRow}>
+            <View style={{ flex: 1 }}>
+              <Input
+                leading={<HugeiconsIcon icon={Calendar01Icon} size={18} color={colors.textSecondary} strokeWidth={2.25} />}
+                placeholder="YYYY-MM-DD"
+                value={form.startDate}
+                onChangeText={(v) => update('startDate', v)}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Input
+                leading={<HugeiconsIcon icon={Calendar01Icon} size={18} color={colors.textSecondary} strokeWidth={2.25} />}
+                placeholder="YYYY-MM-DD"
+                value={form.endDate}
+                onChangeText={(v) => update('endDate', v)}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
           </View>
-        )}
 
-        <Text style={styles.label}>Date Range</Text>
-        <View style={styles.dateRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Start Date"
-            placeholderTextColor={colors.textMuted}
-            value={form.startDate}
-            onChangeText={(v) => update('startDate', v)}
+          <Input
+            label="Group size"
+            leading={<HugeiconsIcon icon={UserGroupIcon} size={18} color={colors.textSecondary} strokeWidth={2.25} />}
+            placeholder="Max members (e.g. 8)"
+            value={form.groupSize}
+            onChangeText={(v) => update('groupSize', v)}
+            keyboardType="numeric"
           />
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="End Date"
-            placeholderTextColor={colors.textMuted}
-            value={form.endDate}
-            onChangeText={(v) => update('endDate', v)}
+
+          <Input
+            label="Estimated budget (NPR)"
+            leading={<HugeiconsIcon icon={Wallet02Icon} size={18} color={colors.textSecondary} strokeWidth={2.25} />}
+            placeholder="25000"
+            value={form.budget}
+            onChangeText={(v) => update('budget', v)}
+            keyboardType="numeric"
           />
-        </View>
 
-        <Field label="Group Size" placeholder="Max members (e.g., 8)"
-          value={form.groupSize} onChangeText={(v) => update('groupSize', v)} keyboardType="numeric" />
+          <Text style={styles.label}>Description</Text>
+          <Card style={{ marginBottom: spacing.md }}>
+            <TextInput
+              style={styles.textarea}
+              placeholder="Tell others about your trip — pace, goals, what gear they need…"
+              placeholderTextColor={colors.textMuted}
+              value={form.description}
+              onChangeText={(v) => update('description', v)}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </Card>
 
-        <Field label="Estimated Budget (NPR)" placeholder="e.g., 25000"
-          value={form.budget} onChangeText={(v) => update('budget', v)} keyboardType="numeric" />
-
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={[styles.input, styles.textarea]}
-          placeholder="Tell others about your trip..."
-          placeholderTextColor={colors.textMuted}
-          value={form.description}
-          onChangeText={(v) => update('description', v)}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
-
-        <TouchableOpacity
-          style={[styles.createBtn, loading && { opacity: 0.7 }]}
-          onPress={handleCreate}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.createBtnText}>Create Trip</Text>}
-        </TouchableOpacity>
-        <View style={{ height: 40 }} />
+          <Button
+            label="Create trip"
+            icon={PlusSignIcon}
+            loading={loading}
+            onPress={handleCreate}
+            fullWidth
+            size="lg"
+          />
+        </Stagger>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const Field = ({ label, ...props }) => (
-  <View style={{ marginBottom: 16 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} placeholderTextColor={colors.textMuted} {...props} />
-  </View>
-);
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  safe: { flex: 1, backgroundColor: colors.background },
+
+  gateWrap: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    padding: spacing.xl, gap: spacing.md,
   },
-  cancel: { color: colors.textSecondary, fontSize: 15 },
-  title: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  container: { padding: 16 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginBottom: 8 },
-  input: {
-    backgroundColor: colors.inputBg,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: colors.textPrimary,
-    marginBottom: 16,
+  gateTitle: {
+    fontSize: fontSize.xxl, fontWeight: fontWeight.bold,
+    color: colors.text, textAlign: 'center', letterSpacing: -0.3,
   },
-  textarea: { height: 100, paddingTop: 14 },
-  trailPicker: {
-    backgroundColor: colors.inputBg,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  gateSub: {
+    fontSize: fontSize.md, color: colors.textSecondary,
+    textAlign: 'center', lineHeight: 26,
   },
-  trailPickerText: { fontSize: 15, color: colors.textPrimary },
-  chevron: { fontSize: 12, color: colors.textMuted },
-  trailDropdown: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-    elevation: 4,
+
+  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.text, letterSpacing: -0.3, marginTop: 2 },
+
+  label: { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.semiBold, marginBottom: spacing.xs, marginTop: spacing.xs },
+  picker: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md, paddingVertical: 14,
+    marginBottom: spacing.md,
   },
-  trailOption: { padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  trailOptionText: { fontSize: 14, color: colors.textPrimary },
-  dateRow: { flexDirection: 'row', gap: 12 },
-  createBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: 50,
-    alignItems: 'center',
-    marginTop: 8,
+  pickerText: { flex: 1, fontSize: fontSize.md, color: colors.text },
+  trailOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: 14,
   },
-  createBtnText: { color: colors.white, fontSize: 16, fontWeight: '600' },
+  trailDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  trailOptionText: { fontSize: fontSize.md, color: colors.text },
+
+  dateRow: { flexDirection: 'row', gap: spacing.sm },
+
+  textarea: { minHeight: 100, fontSize: fontSize.md, color: colors.text, lineHeight: 22 },
 });
 
 export default CreateTripScreen;

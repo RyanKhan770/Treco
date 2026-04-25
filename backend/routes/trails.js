@@ -77,7 +77,7 @@ router.put('/:id', auth, requireRole('admin'), async (req, res) => {
   const fields = req.body;
   const setClause = Object.keys(fields)
     .map((key, i) => `${key} = $${i + 2}`)
-    .join(', ');
+    .join(', ') + ', updated_at = NOW()';
   try {
     const result = await pool.query(
       `UPDATE trails SET ${setClause} WHERE id = $1 RETURNING *`,
@@ -86,6 +86,47 @@ router.put('/:id', auth, requireRole('admin'), async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'Trail not found' });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/trails/:id/reviews
+router.get('/:id/reviews', async (req, res) => {
+  try {
+    const reviews = await pool.query(
+      `SELECT tr.*, tr.condition_status, u.name, u.profile_photo, u.overall_rating
+       FROM trail_reviews tr
+       JOIN users u ON tr.user_id = u.id
+       WHERE tr.trail_id = $1
+       ORDER BY tr.created_at DESC`,
+      [req.params.id],
+    );
+    const stats = await pool.query(
+      `SELECT ROUND(AVG(rating)::NUMERIC, 2) AS avg_rating, COUNT(*) AS total
+       FROM trail_reviews WHERE trail_id = $1`,
+      [req.params.id],
+    );
+    res.json({ reviews: reviews.rows, stats: stats.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/trails/:id/reviews
+router.post('/:id/reviews', auth, async (req, res) => {
+  const { rating, comment, visited_date, condition_status } = req.body;
+  if (!rating) return res.status(400).json({ message: 'Rating is required' });
+  try {
+    const result = await pool.query(
+      `INSERT INTO trail_reviews (trail_id, user_id, rating, comment, visited_date, condition_status)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, req.user.id, rating, comment || null, visited_date || null, condition_status || 'Clear'],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'You have already reviewed this trail' });
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }

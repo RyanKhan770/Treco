@@ -61,4 +61,24 @@ router.post('/user', auth, async (req, res) => {
   }
 });
 
+// GET /api/reviews/by/:id — reviews written BY this user
+router.get('/by/:id', auth, async (req, res) => {
+  try {
+    const reviews = await pool.query(
+      `SELECT ur.*, u.name AS reviewed_name, u.profile_photo AS reviewed_photo,
+              g.name AS group_name
+       FROM user_reviews ur
+       JOIN users u ON ur.reviewed_id = u.id
+       LEFT JOIN groups g ON ur.group_id = g.id
+       WHERE ur.reviewer_id = $1
+       ORDER BY ur.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(reviews.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

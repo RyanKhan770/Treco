@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, StatusBar,
   FlatList, TextInput, ScrollView, Platform, Dimensions,
@@ -10,37 +10,92 @@ import MapboxMock from '../../utils/MapboxMock';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 const MapboxGL = isExpoGo ? MapboxMock : require('@rnmapbox/maps').default;
 
-import {
-  Search, Layers, Plus, Minus, Locate, Star, Clock,
-  TrendingUp, MapPin, ChevronRight, X,
-} from 'lucide-react-native';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { Search01Icon, PlusSignIcon, StarIcon, Clock01Icon, ChartUpIcon, MapPinIcon, Cancel01Icon, PlayIcon, Layers01Icon, MinusSignIcon, Gps01Icon, Bookmark02Icon } from '@hugeicons/core-free-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../constants/colors';
-import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
+import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
 import { PressableScale, Chip } from '../../components/ui';
 import { getTrailImage } from '../../assets/images/trailImages';
 import { NEPAL_TRAILS } from '../../constants/kathmandu_trails';
+import { trailsAPI, savedTrailsAPI } from '../../services/api';
 
 const { width: W, height: H } = Dimensions.get('window');
 
-// ── Kathmandu Valley trails only ───────────────────────────────────
+// ── Helper: normalise difficulty string from DB ─────────────────────
+function normDifficulty(d = '') {
+  const map = { easy: 'Easy', moderate: 'Moderate', hard: 'Hard', strenuous: 'Strenuous' };
+  return map[d.toLowerCase()] || d;
+}
+
+// ── Merge DB trail row with rich local constant ─────────────────────
+function mergeTrail(apiRow) {
+  const local = NEPAL_TRAILS.find(
+    (t) => t.name.toLowerCase().trim() === apiRow.name.toLowerCase().trim(),
+  );
+  // Extract DB coordinates from geojson_path (applies to both local-match and API-only paths)
+  const lng = parseFloat(apiRow.longitude);
+  const lat = parseFloat(apiRow.latitude);
+  const gj = apiRow.geojson_path;
+  const dbCoords = (gj && Array.isArray(gj.coordinates) && gj.coordinates.length >= 2)
+    ? gj.coordinates : null;
+
+  if (local) {
+    // Prefer real GPS coordinates from the DB over any stub coords in local constants
+    return {
+      ...local,
+      _dbId: apiRow.id,
+      ...(dbCoords ? {
+        coordinates: dbCoords,
+        startCoord: dbCoords[0],
+        center: dbCoords[Math.floor(dbCoords.length / 2)],
+      } : {}),
+    };
+  }
+  // API-only trail — synthesise from DB columns + geojson_path
+  const coords = dbCoords || [[lng, lat]];
+  const midIdx = Math.floor(coords.length / 2);
+  const isMulti = (apiRow.duration_days || 0) > 1;
+  return {
+    id:            `api-${apiRow.id}`,
+    _dbId:         apiRow.id,
+    name:          apiRow.name,
+    region:        apiRow.region || apiRow.location_name || '',
+    difficulty:    normDifficulty(apiRow.difficulty),
+    distance:      apiRow.distance_km ? `${apiRow.distance_km} km` : '—',
+    duration:      apiRow.duration_days ? `${apiRow.duration_days} day${apiRow.duration_days > 1 ? 's' : ''}` : '—',
+    maxElevation:  apiRow.max_altitude_m || 0,
+    elevationGain: apiRow.elevation_gain_m ? `+${apiRow.elevation_gain_m}m` : '—',
+    center:        coords.length >= 2 ? coords[midIdx] : [lng, lat],
+    zoom:          isMulti ? 10 : 13,
+    startCoord:    coords[0],
+    coordinates:   coords,
+    waypoints:     [],
+    pois:          [],
+    description:   apiRow.description || '',
+    bestSeason:    apiRow.best_season || 'N/A',
+    coverImage:    apiRow.cover_image || null,
+  };
+}
+
+// ──MapsIconcentre for Kathmandu Valley (fallback) ─────────────────────
+const KV_CENTER = [85.3240, 27.7000];
+const KV_ZOOM   = 10.5;
+
+// ── Fallback trails (local constants) for offline/empty DB ─────────
 const KV_IDS = [
   'sundarijal-chisapani', 'shivapuri', 'nagarkot-changu', 'phulchowki',
   'champadevi', 'nagarjun', 'chandragiri', 'helambu', 'langtang-valley',
 ];
-const KV_TRAILS = NEPAL_TRAILS.filter((t) => KV_IDS.includes(t.id));
-
-// Map centre for Kathmandu Valley
-const KV_CENTER = [85.3240, 27.7000];
-const KV_ZOOM   = 10.5;
+const KV_FALLBACK = NEPAL_TRAILS.filter((t) => KV_IDS.includes(t.id));
 
 const MAP_STYLES = {
   Outdoors:  'mapbox://styles/mapbox/outdoors-v12',
   Satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
 };
 
-const isMultiDay = (t) => !/day|half|hr/i.test(t.duration);
-const SEL_COLOR  = '#F4A261';
+const isMultiDay = (t) => /days/i.test(t.duration ?? '');
+const SEL_COLOR  = '#00c853';
 
 // OSM sac_scale → map pin colour (mirrors AllTrails difficulty colours)
 // sac_scale values: hiking | mountain_hiking | demanding_mountain_hiking | alpine_hiking
@@ -61,8 +116,6 @@ function trailColor(trail) {
   if (trail.osmTags?.sac_scale) return SAC_COLORS[trail.osmTags.sac_scale] || '#2D7A4F';
   return DIFF_COLORS[trail.difficulty] || '#2D7A4F';
 }
-const HIKE_COLOR = '#2D7A4F';
-const TREK_COLOR = '#1A6FA8';
 
 const FILTERS = ['All', 'Hikes', 'Treks', 'Easy', 'Moderate', 'Hard'];
 
@@ -95,10 +148,58 @@ export default function ExploreScreen({ navigation }) {
   const cameraRef  = useRef(null);
   const zoomLvl    = useRef(KV_ZOOM);
 
-  const [styleKey, setStyleKey] = useState('Outdoors');
-  const [selected, setSelected] = useState(null);
-  const [filter,   setFilter]   = useState('All');
-  const [search,   setSearch]   = useState('');
+  const [styleKey,   setStyleKey]   = useState('Outdoors');
+  const [selected,   setSelected]   = useState(null);
+  const [filter,     setFilter]     = useState('All');
+  const [search,     setSearch]     = useState('');
+  const [allTrails,  setAllTrails]  = useState(KV_FALLBACK);
+  const [loadingMap, setLoadingMap] = useState(true);
+  const [savedSet,   setSavedSet]   = useState(new Set());
+
+  // Fetch saved trails on mount
+  useEffect(() => {
+    savedTrailsAPI.getAll()
+      .then(res => {
+        const ids = new Set((res.data || []).map(t => t.id));
+        setSavedSet(ids);
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleSave = useCallback(async (trail) => {
+    const dbId = trail._dbId || trail.id;
+    const isSaved = savedSet.has(trail.id) || savedSet.has(dbId);
+    try {
+      if (isSaved) {
+        await savedTrailsAPI.unsave(dbId);
+        setSavedSet(prev => { const s = new Set(prev); s.delete(trail.id); s.delete(dbId); return s; });
+      } else {
+        await savedTrailsAPI.save(dbId);
+        setSavedSet(prev => { const s = new Set(prev); s.add(trail.id); s.add(dbId); return s; });
+      }
+    } catch {}
+  }, [savedSet]);
+
+  // ── Fetch trails from DB on mount ─────────────────────────────────
+  useEffect(() => {
+    trailsAPI.getAll()
+      .then((res) => {
+        const rows = res.data || [];
+        if (rows.length > 0) {
+          const merged = rows.map(mergeTrail);
+          // Deduplicate by id in case DB has duplicate rows
+          const seen = new Set();
+          const deduped = merged.filter((t) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          });
+          setAllTrails(deduped);
+        }
+      })
+      .catch(() => { /* keep fallback */ })
+      .finally(() => setLoadingMap(false));
+  }, []);
 
   // ── Sheet animation ─────────────────────────────────────────────
   const sheetTop    = useRef(new Animated.Value(SHEET_MID)).current;
@@ -139,18 +240,29 @@ export default function ExploreScreen({ navigation }) {
   ).current;
 
   // ── Filter ──────────────────────────────────────────────────────
-  const filtered = useMemo(() => KV_TRAILS.filter((t) => {
+  const filtered = useMemo(() => allTrails.filter((t) => {
     const multi = isMultiDay(t);
     if (filter === 'Hikes'    && multi)  return false;
     if (filter === 'Treks'    && !multi) return false;
     if (['Easy','Moderate','Hard'].includes(filter) && t.difficulty !== filter) return false;
     if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [filter, search]);
+  }), [filter, search, allTrails]);
 
-  const selectedTrail = useMemo(() => KV_TRAILS.find((t) => t.id === selected), [selected]);
+  const selectedTrail = useMemo(() => allTrails.find((t) => t.id === selected), [selected, allTrails]);
 
-  // ── Map camera ──────────────────────────────────────────────────
+  const allTrailsGeoJSON = useMemo(() => ({
+    type: 'FeatureCollection',
+    features: allTrails
+      .filter((t) => t.coordinates && t.coordinates.length >= 2)
+      .map((t) => ({
+        type: 'Feature',
+        properties: { id: t.id, color: trailColor(t) },
+        geometry: { type: 'LineString', coordinates: t.coordinates },
+      })),
+  }), [allTrails]);
+
+  // ──MapsIconcamera ──────────────────────────────────────────────────
   const flyTo = useCallback((trail) => {
     cameraRef.current?.setCamera({
       centerCoordinate: trail.center,
@@ -195,9 +307,11 @@ export default function ExploreScreen({ navigation }) {
         style={StyleSheet.absoluteFill}
         styleURL={MAP_STYLES[styleKey]}
         compassEnabled={false}
+        scaleBarEnabled={false}
         attributionPosition={{ bottom: 8, left: 8 }}
         logoPosition={{ bottom: 8, left: 100 }}
         onPress={() => setSelected(null)}
+        terrain={{ sourceID: 'mapbox-dem', exaggeration: 1.3 }}
       >
         <MapboxGL.Camera
           ref={cameraRef}
@@ -207,24 +321,45 @@ export default function ExploreScreen({ navigation }) {
           animationDuration={600}
         />
 
-        {/* ── Unselected trails: dot-pin only, no route line ── */}
-        {KV_TRAILS.filter((t) => t.id !== selected).map((trail) => {
-          const color = trailColor(trail);
-          return (
-            <MapboxGL.MarkerView
-              key={trail.id}
-              id={`pin-${trail.id}`}
-              coordinate={trail.center}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-              <TouchableOpacity
-                onPress={() => handleSelect(trail)}
-                activeOpacity={0.75}
-                style={[styles.dotPin, { backgroundColor: color }]}
-              />
-            </MapboxGL.MarkerView>
-          );
-        })}
+        <MapboxGL.RasterDemSource
+          id="mapbox-dem"
+          url="mapbox://mapbox.terrain-rgb"
+          tileSize={512}
+          maxZoomLevel={14}
+        />
+
+        <MapboxGL.UserLocation visible={true} showsUserHeadingIndicator={true} />
+
+        {/* All trails as grey route lines — tap to select */}
+        <MapboxGL.ShapeSource
+          id="all-trails-src"
+          shape={allTrailsGeoJSON}
+          onPress={(e) => {
+            const id = e.features?.[0]?.properties?.id;
+            const trail = allTrails.find((t) => t.id === id);
+            if (trail) handleSelect(trail);
+          }}
+        >
+          <MapboxGL.LineLayer id="all-trails-halo" filter={['!=', ['get', 'id'], selected ?? '']} style={{ lineColor: '#fff', lineWidth: 5, lineOpacity: 0.6, lineCap: 'round' }} />
+          <MapboxGL.LineLayer id="all-trails-base" filter={['!=', ['get', 'id'], selected ?? '']} style={{ lineColor: colors.primary, lineWidth: 3.5, lineOpacity: 0.9, lineCap: 'round', lineJoin: 'round' }} />
+          <MapboxGL.LineLayer id="all-trails-dash" filter={['!=', ['get', 'id'], selected ?? '']} style={{ lineColor: '#fff', lineWidth: 1.5, lineDasharray: [2, 2], lineCap: 'round', lineJoin: 'round' }} />
+        </MapboxGL.ShapeSource>
+
+        {/* Dot pins for trails with no route coordinates */}
+        {allTrails.filter((t) => t.id !== selected && (!t.coordinates || t.coordinates.length < 2)).map((trail) => (
+          <MapboxGL.MarkerView
+            key={trail.id}
+            id={`pin-${trail.id}`}
+            coordinate={trail.center}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <TouchableOpacity
+              onPress={() => handleSelect(trail)}
+              activeOpacity={0.75}
+              style={[styles.dotPin, { backgroundColor: trailColor(trail) }]}
+            />
+          </MapboxGL.MarkerView>
+        ))}
 
         {/* ── Selected trail: full route line + start marker ── */}
         {selectedTrail && (() => {
@@ -239,22 +374,10 @@ export default function ExploreScreen({ navigation }) {
                 shape={shape}
                 onPress={() => {/* already selected */}}
               >
-                {/* White halo for legibility */}
-                <MapboxGL.LineLayer
-                  id="sel-halo"
-                  style={{ lineColor: '#fff', lineWidth: 9, lineOpacity: 0.5, lineCap: 'round' }}
-                />
-                {/* Coloured route */}
-                <MapboxGL.LineLayer
-                  id="sel-line"
-                  style={{
-                    lineColor: SEL_COLOR,
-                    lineWidth: 5,
-                    lineOpacity: 1,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                  }}
-                />
+                <MapboxGL.LineLayer id="sel-glow" style={{ lineColor: colors.primary, lineWidth: 14, lineOpacity: 0.25, lineCap: 'round' }} />
+                <MapboxGL.LineLayer id="sel-halo" style={{ lineColor: '#fff', lineWidth: 7, lineOpacity: 0.8, lineCap: 'round' }} />
+                <MapboxGL.LineLayer id="sel-base" style={{ lineColor: colors.primary, lineWidth: 5, lineOpacity: 1, lineCap: 'round', lineJoin: 'round' }} />
+                <MapboxGL.LineLayer id="sel-dash" style={{ lineColor: '#fff', lineWidth: 2, lineDasharray: [2, 2], lineCap: 'round', lineJoin: 'round' }} />
               </MapboxGL.ShapeSource>
 
               {/* Start marker */}
@@ -278,20 +401,28 @@ export default function ExploreScreen({ navigation }) {
           style={[styles.ctrlBtn, styles.ctrlFirst, styleKey === 'Satellite' && styles.ctrlActive]}
           onPress={() => setStyleKey((k) => k === 'Outdoors' ? 'Satellite' : 'Outdoors')}
         >
-          <Layers size={18} color={styleKey === 'Satellite' ? '#fff' : colors.text} strokeWidth={2} />
+          <HugeiconsIcon icon={Layers01Icon} size={18} color={styleKey === 'Satellite' ? '#fff' : colors.text} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.ctrlDivider} />
         <TouchableOpacity style={styles.ctrlBtn} onPress={zoomIn}>
-          <Plus size={18} color={colors.text} strokeWidth={2.5} />
+          <HugeiconsIcon icon={PlusSignIcon} size={18} color={colors.text} strokeWidth={2.5} />
         </TouchableOpacity>
         <View style={styles.ctrlDivider} />
         <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlLast]} onPress={zoomOut}>
-          <Minus size={18} color={colors.text} strokeWidth={2.5} />
+          <HugeiconsIcon icon={MinusSignIcon} size={18} color={colors.text} strokeWidth={2.5} />
         </TouchableOpacity>
 
         {/* Recenter — separate pill below */}
         <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlFirst, styles.ctrlLast, { marginTop: 8 }]} onPress={recenter}>
-          <Locate size={18} color={colors.primary} strokeWidth={2} />
+          <HugeiconsIcon icon={Gps01Icon} size={18} color={colors.primary} strokeWidth={2} />
+        </TouchableOpacity>
+
+        {/* Record Trek */}
+        <TouchableOpacity 
+          style={[styles.ctrlBtn, styles.ctrlFirst, styles.ctrlLast, { marginTop: 8, backgroundColor: colors.primary }]} 
+          onPress={() => navigation.navigate('RecordTrek')}
+        >
+          <HugeiconsIcon icon={PlayIcon} size={18} color="#fff" strokeWidth={2.5} style={{ marginLeft: 3 }} />
         </TouchableOpacity>
       </View>
 
@@ -303,10 +434,10 @@ export default function ExploreScreen({ navigation }) {
           <View style={styles.handle} />
         </View>
 
-        {/* Search bar */}
+        {/*Search01Iconbar */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
-            <Search size={16} color={colors.textLight} strokeWidth={2.25} />
+            <HugeiconsIcon icon={Search01Icon} size={16} color={colors.textLight} strokeWidth={2.25} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search trails…"
@@ -316,7 +447,7 @@ export default function ExploreScreen({ navigation }) {
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')}>
-                <X size={14} color={colors.textLight} strokeWidth={2.5} />
+                <HugeiconsIcon icon={Cancel01Icon} size={14} color={colors.textLight} strokeWidth={2.5} />
               </TouchableOpacity>
             )}
           </View>
@@ -335,7 +466,9 @@ export default function ExploreScreen({ navigation }) {
 
         {/* Trail count */}
         <Text style={styles.countLabel}>
-          {filtered.length} trail{filtered.length !== 1 ? 's' : ''} near Kathmandu
+          {loadingMap
+            ? 'Loading trails…'
+            : `${filtered.length} trail${filtered.length !== 1 ? 's' : ''} near Kathmandu`}
         </Text>
 
         {/* Trail cards */}
@@ -352,9 +485,11 @@ export default function ExploreScreen({ navigation }) {
             <TrailCard
               trail={trail}
               isSelected={selected === trail.id}
+              isSaved={savedSet.has(trail.id) || savedSet.has(trail._dbId)}
               onSelect={() => handleSelect(trail)}
+              onToggleSave={() => toggleSave(trail)}
               onDetail={() =>
-                navigation.navigate('TrailDetail', { trailId: trail.id, trailName: trail.name })
+                navigation.navigate('TrailDetail', { trailId: trail.id, trailName: trail.name, trailData: trail })
               }
             />
           )}
@@ -370,7 +505,7 @@ export default function ExploreScreen({ navigation }) {
 }
 
 /* ── Trail card ──────────────────────────────────────────────────── */
-function TrailCard({ trail, isSelected, onSelect, onDetail }) {
+function TrailCard({ trail, isSelected, isSaved, onSelect, onToggleSave, onDetail }) {
   const multi   = isMultiDay(trail);
   const rating  = RATINGS[trail.id] ?? 4.5;
   const imgUri  = getTrailImage(trail.id);
@@ -382,8 +517,7 @@ function TrailCard({ trail, isSelected, onSelect, onDetail }) {
         <Image
           source={{ uri: imgUri }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
+          resizeMode="cover" />
         {/* Gradient overlay so text is always readable */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.45)']}
@@ -403,27 +537,42 @@ function TrailCard({ trail, isSelected, onSelect, onDetail }) {
         ]}>
           <Text style={styles.badgeText}>{trail.difficulty}</Text>
         </View>
+        {/* Bookmark button */}
+        <TouchableOpacity
+          style={styles.bookmarkBtn}
+          onPress={() => onToggleSave()}
+          activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <HugeiconsIcon
+            icon={Bookmark02Icon}
+            size={18}
+            color={isSaved ? "#F59E0B" : "#fff"}
+            fill={isSaved ? "#F59E0B" : "transparent"}
+            strokeWidth={isSaved ? 0 : 2}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Body */}
       <View style={styles.cardBody}>
         <Text style={styles.cardName} numberOfLines={1}>{trail.name}</Text>
         <View style={styles.locRow}>
-          <MapPin size={11} color={colors.textLight} strokeWidth={2} />
+          <HugeiconsIcon icon={MapPinIcon} size={11} color={colors.textLight} strokeWidth={2} />
           <Text style={styles.locText} numberOfLines={1}>{trail.region}</Text>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <TrendingUp size={12} color={colors.textSecondary} strokeWidth={2} />
+            <HugeiconsIcon icon={ChartUpIcon} size={12} color={colors.textSecondary} strokeWidth={2} />
             <Text style={styles.statText}>{trail.distance}</Text>
           </View>
           <View style={styles.statItem}>
-            <Clock size={12} color={colors.textSecondary} strokeWidth={2} />
+            <HugeiconsIcon icon={Clock01Icon} size={12} color={colors.textSecondary} strokeWidth={2} />
             <Text style={styles.statText}>{trail.duration}</Text>
           </View>
           <View style={[styles.statItem, { marginLeft: 'auto' }]}>
-            <Star size={12} color="#F59E0B" fill="#F59E0B" strokeWidth={0} />
+            <HugeiconsIcon icon={StarIcon} size={12} color="#F59E0B" fill="#F59E0B" strokeWidth={0} />
             <Text style={[styles.statText, { fontWeight: fontWeight.bold, color: colors.text }]}>
               {rating.toFixed(1)}
             </Text>
@@ -444,7 +593,7 @@ const CARD_W = W * 0.75;
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#d4e3d4' },
 
-  /* ── Map controls ── */
+  /* ──MapsIconcontrols ── */
   mapControls: {
     position: 'absolute', right: 12,
     zIndex: 20,
@@ -495,10 +644,10 @@ const styles = StyleSheet.create({
     left: 0, right: 0,
     bottom: -20, // extend slightly below safe area
     backgroundColor: '#fff',
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    borderTopLeftRadius: 32, borderTopRightRadius: 32,
     ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: -4 } },
-      android: { elevation: 16 },
+      ios:     { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 24, shadowOffset: { width: 0, height: -4 } },
+      android: { elevation: 20 },
     }),
   },
 
@@ -512,14 +661,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#D0D4D8',
   },
 
-  /* Search */
+  /*Search01Icon*/
   searchRow: { paddingHorizontal: spacing.md, marginBottom: spacing.xs },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.surface,
     borderRadius: radius.round,
-    paddingVertical: 11, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: colors.border,
+    paddingVertical: 12, paddingHorizontal: 16,
+    borderWidth: 0,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.text, paddingVertical: 0 },
 
@@ -549,10 +698,10 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_W,
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 24,
     overflow: 'hidden',
     ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+      ios:     { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 4 },
     }),
   },
@@ -562,6 +711,12 @@ const styles = StyleSheet.create({
   cardImg: {
     height: 140,
     backgroundColor: colors.primaryPale,
+  },
+  bookmarkBtn: {
+    position: 'absolute', bottom: 10, right: 10,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   /* Badges */
@@ -598,8 +753,8 @@ const styles = StyleSheet.create({
   /* Detail button */
   detailBtn: {
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: 10,
+    borderRadius: radius.round,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   detailBtnText: {

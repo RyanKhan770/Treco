@@ -1,14 +1,12 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, StatusBar, Alert,
-  Dimensions, ActivityIndicator, TouchableOpacity,
+  Dimensions, ActivityIndicator, TouchableOpacity, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  ChevronLeft, MoreVertical, Calendar, Users, Wallet, MapPin,
-  CheckSquare, MessageSquare, UserPlus, BadgeCheck, Star,
-  RefreshCw, AlertCircle, UserMinus,
-} from 'lucide-react-native';
+import { ArrowLeft02Icon, MoreVerticalCircle01Icon, Calendar01Icon, UserGroupIcon, Wallet02Icon, MapPinIcon, Tick02Icon, Message01Icon, UserAdd01Icon, CheckmarkBadge01Icon, StarIcon, ReloadIcon, Alert01Icon, UserRemove01Icon, Navigation03Icon, Tick01Icon } from '@hugeicons/core-free-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, shadows, spacing } from '../../constants/theme';
@@ -18,6 +16,7 @@ import {
 import MountainScene from '../../assets/svg/MountainScene';
 import TopoPattern from '../../assets/svg/TopoPattern';
 import { groupsAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const { width: W } = Dimensions.get('window');
 
@@ -57,6 +56,7 @@ function formatBudget(val) {
 }
 
 const GroupDetailScreen = ({ route, navigation }) => {
+  const { user } = useAuth();
   const { groupId } = route.params;
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -119,7 +119,7 @@ const GroupDetailScreen = ({ route, navigation }) => {
         <View style={[styles.hero, { alignItems: 'center', justifyContent: 'flex-end' }]}>
           <SafeAreaView edges={['top']} style={styles.heroHeader}>
             <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
-              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+              <HugeiconsIcon icon={ArrowLeft02Icon} size={22} color="#fff" strokeWidth={2.25} />
             </PressableScale>
             <View />
           </SafeAreaView>
@@ -141,16 +141,16 @@ const GroupDetailScreen = ({ route, navigation }) => {
         <View style={styles.hero}>
           <SafeAreaView edges={['top']} style={styles.heroHeader}>
             <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
-              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+              <HugeiconsIcon icon={ArrowLeft02Icon} size={22} color="#fff" strokeWidth={2.25} />
             </PressableScale>
           </SafeAreaView>
         </View>
         <View style={styles.errorContainer}>
-          <AlertCircle size={48} color={colors.danger} strokeWidth={1.5} />
+          <HugeiconsIcon icon={Alert01Icon} size={48} color={colors.danger} strokeWidth={1.5} />
           <Text style={styles.errorTitle}>Couldn't load group</Text>
           <Text style={styles.errorSub}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={fetchGroup}>
-            <RefreshCw size={16} color={colors.primary} strokeWidth={2.25} />
+            <HugeiconsIcon icon={ReloadIcon} size={16} color={colors.primary} strokeWidth={2.25} />
             <Text style={styles.retryText}>Try again</Text>
           </TouchableOpacity>
         </View>
@@ -158,11 +158,37 @@ const GroupDetailScreen = ({ route, navigation }) => {
     );
   }
 
+  const handleUploadPhoto = async () => {
+    if (group.leader_id !== user?.id && user?.role !== 'admin') return;
+    
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setLoading(true);
+        const uploadRes = await groupsAPI.uploadPhoto(groupId, result.assets[0].uri);
+        setGroup(prev => ({ ...prev, group_photo: uploadRes.data.group_photo }));
+        Alert.alert('Success', 'Group photo updated successfully!');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Upload Failed', 'There was an error uploading the photo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ── Derived fields ───────────────────────────────────────────────────────────
   const members = group.members || [];
   const memberCount = group.current_members ?? members.length ?? 0;
   const maxMembers = group.max_members ?? 10;
   const diff = group.difficulty ?? 'Moderate';
+  const isMember = members.some(m => m.id === user?.id) || group.leader_id === user?.id;
   const variant = heroVariant(group.name);
 
   return (
@@ -171,19 +197,41 @@ const GroupDetailScreen = ({ route, navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        <View style={styles.hero}>
-          <MountainScene width={W} height={260} variant={variant} />
+        <TouchableOpacity activeOpacity={0.9} onPress={handleUploadPhoto} style={styles.hero}>
+          {group.group_photo ? (
+            <Image 
+              source={{ uri: group.group_photo.startsWith('http') ? group.group_photo : `http://10.0.2.2:5000${group.group_photo}` }} 
+              style={{ width: W, height: 260, resizeMode: 'cover' }} 
+            />
+          ) : (
+            <MountainScene width={W} height={260} variant={variant} />
+          )}
           <LinearGradient
             colors={['rgba(15,44,32,0)', 'rgba(15,44,32,0.85)']}
             style={styles.heroFade}
           />
+          {group.leader_id === user?.id && (
+            <View style={{ position: 'absolute', right: spacing.md, bottom: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Tap to change cover</Text>
+            </View>
+          )}
           <TopoPattern width={W} height={260} color="#fff" opacity={0.08} />
           <SafeAreaView edges={['top']} style={styles.heroHeader}>
             <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} scaleTo={0.9}>
-              <ChevronLeft size={22} color="#fff" strokeWidth={2.25} />
+              <HugeiconsIcon icon={ArrowLeft02Icon} size={22} color="#fff" strokeWidth={2.25} />
             </PressableScale>
-            <PressableScale style={styles.iconBtn} scaleTo={0.9}>
-              <MoreVertical size={20} color="#fff" strokeWidth={2.25} />
+            <PressableScale 
+              style={styles.iconBtn} 
+              scaleTo={0.9}
+              onPress={() => {
+                Alert.alert('Group Options', 'Choose an action', [
+                  { text: 'Report Group', style: 'destructive', onPress: () => Alert.alert('Reported', 'Our team will review this group.') },
+                  { text: 'Leave Group', style: 'destructive', onPress: () => Alert.alert('Error', 'Cannot leave group at this time.') },
+                  { text: 'Cancel', style: 'cancel' }
+                ]);
+              }}
+            >
+              <HugeiconsIcon icon={MoreVerticalCircle01Icon} size={20} color="#fff" strokeWidth={2.25} />
             </PressableScale>
           </SafeAreaView>
           <FadeIn delay={150} style={styles.heroText}>
@@ -196,7 +244,7 @@ const GroupDetailScreen = ({ route, navigation }) => {
               {group.trail_name ? `${group.trail_name} · ` : ''}Organized by {group.leader_name || 'Organizer'}
             </Text>
           </FadeIn>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.body}>
 
@@ -205,19 +253,19 @@ const GroupDetailScreen = ({ route, navigation }) => {
             <Card style={styles.logisticsCard} elevation="md">
               <View style={styles.logisticsRow}>
                 <View style={styles.logisticsItem}>
-                  <Wallet size={16} color={colors.primary} strokeWidth={2.25} />
+                  <HugeiconsIcon icon={Wallet02Icon} size={16} color={colors.primary} strokeWidth={2.25} />
                   <Text style={styles.logisticsLabel}>Budget</Text>
                   <Text style={styles.logisticsValue}>{formatBudget(group.budget_estimate)}</Text>
                 </View>
                 <View style={styles.logisticsDivider} />
                 <View style={styles.logisticsItem}>
-                  <MapPin size={16} color={colors.primary} strokeWidth={2.25} />
+                  <HugeiconsIcon icon={MapPinIcon} size={16} color={colors.primary} strokeWidth={2.25} />
                   <Text style={styles.logisticsLabel}>Meet at</Text>
                   <Text style={styles.logisticsValue} numberOfLines={1}>{group.meeting_point || 'TBD'}</Text>
                 </View>
                 <View style={styles.logisticsDivider} />
                 <View style={styles.logisticsItem}>
-                  <Users size={16} color={colors.primary} strokeWidth={2.25} />
+                  <HugeiconsIcon icon={UserGroupIcon} size={16} color={colors.primary} strokeWidth={2.25} />
                   <Text style={styles.logisticsLabel}>Seats</Text>
                   <Text style={styles.logisticsValue}>{memberCount}/{maxMembers}</Text>
                 </View>
@@ -243,14 +291,15 @@ const GroupDetailScreen = ({ route, navigation }) => {
           ) : (
             <Stagger initialDelay={200} step={40} distance={12}>
               {members.map((m) => (
-                <Card key={m.id} style={styles.memberCard}>
-                  <View style={[styles.avatar, { backgroundColor: avatarColor(m.name) }]}>
+                <PressableScale key={m.id} onPress={() => navigation.navigate('UserProfile', { userId: m.user_id || m.id })}>
+                  <Card style={styles.memberCard}>
+                    <View style={[styles.avatar, { backgroundColor: avatarColor(m.name) }]}>
                     <Text style={styles.avatarText}>{initials(m.name)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.memberName}>{m.name}</Text>
-                      {m.is_verified && <BadgeCheck size={14} color={colors.info} strokeWidth={2.5} />}
+                      {m.is_verified && <HugeiconsIcon icon={CheckmarkBadge01Icon} size={14} color={colors.info} strokeWidth={2.5} />}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                       <Text style={styles.memberMeta}>
@@ -259,14 +308,15 @@ const GroupDetailScreen = ({ route, navigation }) => {
                       {m.overall_rating != null && (
                         <>
                           <Text style={[styles.memberMeta, { color: colors.textMuted }]}>·</Text>
-                          <Star size={11} color={colors.warning} fill={colors.warning} strokeWidth={0} />
+                          <HugeiconsIcon icon={StarIcon} size={11} color={colors.warning} fill={colors.warning} strokeWidth={0} />
                           <Text style={styles.memberMeta}>{parseFloat(m.overall_rating).toFixed(1)}</Text>
                         </>
                       )}
                     </View>
                   </View>
                 </Card>
-              ))}
+              </PressableScale>
+            ))}
             </Stagger>
           )}
 
@@ -278,7 +328,7 @@ const GroupDetailScreen = ({ route, navigation }) => {
               scaleTo={0.98}
             >
               <View style={styles.checklistIcon}>
-                <CheckSquare size={20} color={colors.primary} strokeWidth={2.25} />
+                <HugeiconsIcon icon={Tick02Icon} size={20} color={colors.primary} strokeWidth={2.25} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.checklistTitle}>Gear checklist</Text>
@@ -287,27 +337,85 @@ const GroupDetailScreen = ({ route, navigation }) => {
               <Text style={styles.viewLink}>View</Text>
             </PressableScale>
           </SlideUp>
+
+          {/* ── Trip budget shortcut ─────────────────────────────────────────── */}
+          <SlideUp delay={280}>
+            <PressableScale
+              style={[styles.checklistCard, { marginTop: spacing.sm }]}
+              onPress={() => navigation.navigate('TripBudget', {
+                groupId,
+                groupName: group.name,
+                members:   group.member_count || group.members?.length || 1,
+                dates:     group.start_date
+                  ? `${new Date(group.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${group.end_date ? ' – ' + new Date(group.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`
+                  : '',
+              })}
+              scaleTo={0.98}
+            >
+              <View style={[styles.checklistIcon, { backgroundColor: '#FFF7E6' }]}>
+                <HugeiconsIcon icon={Wallet02Icon} size={20} color="#E76F51" strokeWidth={2.25} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checklistTitle}>Trip budget</Text>
+                <Text style={styles.checklistSub}>Track shared expenses</Text>
+              </View>
+              <Text style={styles.viewLink}>View</Text>
+            </PressableScale>
+          </SlideUp>
+
+          {/* ── Plan a trip shortcut ──────────────────────────────────────── */}
+          <SlideUp delay={320}>
+            <PressableScale
+              style={[styles.checklistCard, { marginTop: spacing.sm, borderLeftColor: '#457B9D' }]}
+              onPress={() => navigation.navigate('PlanTrip', {
+                groupId,
+                groupName: group.name,
+                trailId: group.trail_id || null,
+                trailName: group.trail_name || null,
+              })}
+              scaleTo={0.98}
+            >
+              <View style={[styles.checklistIcon, { backgroundColor: '#EBF5FB' }]}>
+                <HugeiconsIcon icon={Navigation03Icon} size={20} color="#457B9D" strokeWidth={2.25} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.checklistTitle}>Plan a trip</Text>
+                <Text style={styles.checklistSub}>Invite friends & set schedule</Text>
+              </View>
+              <Text style={styles.viewLink}>Plan</Text>
+            </PressableScale>
+          </SlideUp>
         </View>
       </ScrollView>
 
       {/* ── CTA bar ─────────────────────────────────────────────────────────── */}
       <View style={styles.ctaBar}>
         <Button
-          title="Message"
+          label="Message"
           variant="outline"
-          icon={<MessageSquare size={16} color={colors.primary} strokeWidth={2.25} />}
+          icon={Message01Icon}
           onPress={() => navigation.navigate('Chat', { groupId, groupName: group.name })}
           fullWidth
         />
         <View style={{ flex: 1.2 }}>
-          <Button
-            title={joining ? 'Sending…' : joined ? 'Request sent' : 'Join group'}
-            variant={joined ? 'solid' : 'primary'}
-            icon={!joined && !joining ? <UserPlus size={16} color="#fff" strokeWidth={2.25} /> : null}
-            onPress={!joined && !joining ? handleJoin : undefined}
-            disabled={joined || joining}
-            fullWidth
-          />
+          {isMember ? (
+            <Button
+              label="Already joined"
+              variant="solid"
+              icon={Tick01Icon}
+              disabled={true}
+              fullWidth
+            />
+          ) : (
+            <Button
+              label={joining ? 'Sending…' : joined ? 'Request sent' : 'Join group'}
+              variant={joined ? 'solid' : 'primary'}
+              icon={!joined && !joining ? UserPlus : null}
+              onPress={!joined && !joining ? handleJoin : undefined}
+              disabled={joined || joining}
+              fullWidth
+            />
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -373,16 +481,17 @@ const styles = StyleSheet.create({
   memberMeta: { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.medium },
 
   checklistCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.primaryPale,
-    borderRadius: radius.lg,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     padding: spacing.md, marginTop: spacing.md,
-    borderLeftWidth: 3, borderLeftColor: colors.primary,
+    borderLeftWidth: 0,
   },
   checklistIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#fff',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: colors.card,
     alignItems: 'center', justifyContent: 'center',
+    ...shadows.xs,
   },
   checklistTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.text },
   checklistSub: { fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },

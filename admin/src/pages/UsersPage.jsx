@@ -6,6 +6,7 @@ const ROLE_COLORS = {
   admin:     'bg-purple-100 text-purple-700',
   organizer: 'bg-blue-100 text-blue-700',
   user:      'bg-gray-100 text-gray-600',
+  banned:    'bg-red-100 text-red-700',
 };
 
 export default function UsersPage() {
@@ -37,6 +38,15 @@ export default function UsersPage() {
       await adminAPI.deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch { alert('Failed to delete user'); }
+  };
+
+  const handleBan = async (userId, name, isBanned) => {
+    const action = isBanned ? 'unban' : 'ban';
+    if (!window.confirm(`${isBanned ? 'Unban' : 'Ban'} user "${name}"?`)) return;
+    try {
+      await adminAPI.banUser(userId, !isBanned);
+      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: isBanned ? 'user' : 'banned' } : u));
+    } catch { alert(`Failed to ${action} user`); }
   };
 
   const filtered = users.filter((u) =>
@@ -87,6 +97,12 @@ export default function UsersPage() {
             <option value="organizer">organizer</option>
             <option value="admin">admin</option>
           </select>
+          <button
+            onClick={() => handleBan(id, row.name, row.role === 'banned')}
+            className={`text-xs font-medium px-2 py-1 rounded-lg transition ${row.role === 'banned' ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'}`}
+          >
+            {row.role === 'banned' ? 'Unban' : 'Ban'}
+          </button>
           <button
             onClick={() => handleDelete(id, row.name)}
             className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition"

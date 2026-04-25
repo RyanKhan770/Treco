@@ -22,6 +22,8 @@ export default function TrailsPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [diffFilter, setDiffFilter] = useState('All');
 
   const load = () => {
     setLoading(true);
@@ -32,6 +34,15 @@ export default function TrailsPage() {
   };
 
   useEffect(load, []);
+
+  const filtered = trails.filter((t) => {
+    const matchSearch = !search ||
+      t.name?.toLowerCase().includes(search.toLowerCase()) ||
+      t.location_name?.toLowerCase().includes(search.toLowerCase()) ||
+      t.region?.toLowerCase().includes(search.toLowerCase());
+    const matchDiff = diffFilter === 'All' || t.difficulty === diffFilter.toLowerCase();
+    return matchSearch && matchDiff;
+  });
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Deactivate trail "${name}"?`)) return;
@@ -98,10 +109,10 @@ export default function TrailsPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Trails</h1>
-          <p className="text-gray-400 text-sm mt-1">{trails.length} active trails</p>
+          <p className="text-gray-400 text-sm mt-1">{filtered.length} of {trails.length} trails</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -111,10 +122,30 @@ export default function TrailsPage() {
         </button>
       </div>
 
+      {/* Search + filter bar */}
+      <div className="flex flex-wrap gap-3 mb-5">
+        <input
+          type="text"
+          placeholder="Search by name, location, or region…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-[200px] px-4 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <select
+          value={diffFilter}
+          onChange={(e) => setDiffFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none"
+        >
+          {['All', 'Easy', 'Moderate', 'Hard', 'Challenging'].map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+      </div>
+
       {loading ? (
         <div className="bg-white rounded-xl h-64 animate-pulse border border-gray-100" />
       ) : (
-        <DataTable columns={columns} data={trails} emptyMessage="No trails yet." />
+        <DataTable columns={columns} data={filtered} emptyMessage="No trails match your search." />
       )}
 
       {/* Add Trail Modal */}

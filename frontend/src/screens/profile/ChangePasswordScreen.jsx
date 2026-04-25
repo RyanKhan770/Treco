@@ -1,10 +1,12 @@
+import { HugeiconsIcon } from '@hugeicons/react-native';
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react-native';
+import { LockIcon, ViewIcon, ViewOffIcon, Shield01Icon } from '@hugeicons/core-free-icons';
+import { authAPI } from '../../services/api';
 import { colors } from '../../constants/colors';
 import { fontSize, fontWeight, radius, spacing } from '../../constants/theme';
 import ScreenHeader from '../../components/ui/ScreenHeader';
@@ -38,12 +40,16 @@ export default function ChangePasswordScreen({ navigation }) {
     if (next !== confirm) { Alert.alert('Mismatch', 'New passwords don\'t match.'); return; }
 
     setLoading(true);
-    // TODO: wire to API  —  PUT /api/users/password
-    await new Promise((r) => setTimeout(r, 900));
-    setLoading(false);
-    Alert.alert('Password changed', 'You\'ll need to log in again on other devices.', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    try {
+      await authAPI.changePassword({ currentPassword: current, newPassword: next });
+      Alert.alert('Password changed', "You'll need to log in again on other devices.", [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || 'Could not change password. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,7 +68,7 @@ export default function ChangePasswordScreen({ navigation }) {
           {/* Icon banner */}
           <View style={styles.banner}>
             <View style={styles.bannerIcon}>
-              <ShieldCheck size={32} color={colors.primary} strokeWidth={1.8} />
+              <HugeiconsIcon icon={Shield01Icon} size={32} color={colors.primary} strokeWidth={1.8} />
             </View>
             <Text style={styles.bannerTitle}>Update your password</Text>
             <Text style={styles.bannerSub}>
@@ -129,7 +135,7 @@ export default function ChangePasswordScreen({ navigation }) {
             onPress={handleSubmit}
             scaleTo={0.97}
           >
-            <Lock size={16} color="#fff" strokeWidth={2.5} />
+            <HugeiconsIcon icon={LockIcon} size={16} color="#fff" strokeWidth={2.5} />
             <Text style={styles.submitBtnText}>
               {loading ? 'Updating…' : 'Update password'}
             </Text>
@@ -143,7 +149,7 @@ export default function ChangePasswordScreen({ navigation }) {
 function PasswordField({ label, value, onChange, show, onToggle, isLast }) {
   return (
     <View style={[styles.field, isLast && { borderBottomWidth: 0 }]}>
-      <Lock size={15} color={colors.textLight} strokeWidth={2.25} />
+      <HugeiconsIcon icon={LockIcon} size={15} color={colors.textLight} strokeWidth={2.25} />
       <View style={{ flex: 1 }}>
         <Text style={styles.fieldLabel}>{label}</Text>
         <TextInput
@@ -159,8 +165,8 @@ function PasswordField({ label, value, onChange, show, onToggle, isLast }) {
       </View>
       <TouchableOpacity onPress={onToggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         {show
-          ? <EyeOff size={17} color={colors.textLight} strokeWidth={2} />
-          : <Eye    size={17} color={colors.textLight} strokeWidth={2} />
+          ? <HugeiconsIcon icon={ViewOffIcon} size={17} color={colors.textLight} strokeWidth={2} />
+          : <HugeiconsIcon icon={ViewIcon}    size={17} color={colors.textLight} strokeWidth={2} />
         }
       </TouchableOpacity>
     </View>
